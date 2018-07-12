@@ -10,7 +10,7 @@ from layers.dy_conv import origin_conv, new_conv, new_BN
 
 # from trans_model_paramers import myinit
 
-
+# the base block for shpereface; notice the bn layer
 class Residual(nn.Block):
     def __init__(self, channels, in_channels, same_shape=True, my_fun=nn.Conv2D, **kwargs):
         super(Residual, self).__init__(**kwargs)
