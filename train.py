@@ -41,7 +41,10 @@ def train_model():
             sv = pickle.load(f)
         global_param.load_param(sv, ctx=ctx)
     else:
-        global_param.set_param(params.keys(), ctx=ctx)
+        if isinstance(my_fun(1, 1), new_conv):
+            global_param.set_param(params.keys(), ctx=ctx)
+        elif isinstance(my_fun(1, 1), origin_conv):
+            global_param.set_param(gammas.keys(), ctx=ctx)
 
     epoch_train = len(train_data_loader)
     # train
