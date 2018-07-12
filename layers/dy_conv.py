@@ -59,7 +59,7 @@ def assign_mask(weight, mask, key=None):
     std = std.asscalar()
     if key:
         tag_key = '_'.join(key.split('_')[1:])
-        tag_shape = reduce(lambda x, y: str(x) + 'X' + str(y), masked.shape)
+        tag_shape = reduce(lambda x, y: x + 'X' + y, map(str, masked.shape))
         tag = [tag_key, tag_shape, str(all_count)]
         tag = '_'.join(tag)
         value = 1.0 * count.asscalar() / all_count
@@ -78,10 +78,9 @@ class new_BN(nn.BatchNorm):
         super(new_BN, self).__init__()
 
     def hybrid_forward(self, F, x, gamma, beta, running_mean, running_var):
-        for key in self.params.keys():
-            if 'gamma' in key:
-                print key
-        mask = assign_mask(gamma, global_param.netMask[self.name], self.name)
+        key = self.name + '_gamma'
+        mask = global_param.netMask[key] = \
+            assign_mask(gamma, global_param.netMask[key], key)
         return super(new_BN, self).hybrid_forward(F, x, gamma * mask, beta, running_mean, running_var)
 
 
