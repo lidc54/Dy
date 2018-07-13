@@ -106,6 +106,7 @@ def constrain_conv(mask, name):
 
 
 # gamma in BN will be used for dynamic compress in a structure way.
+# the method is discarded.we will compress relative items where mask masked.
 class new_BN(nn.BatchNorm):
     def __init__(self):
         super(new_BN, self).__init__()
