@@ -12,34 +12,35 @@ from layers.dy_conv import origin_conv, new_conv, new_BN
 
 # the base block for shpereface; notice the bn layer
 class Residual(nn.Block):
-    def __init__(self, channels, in_channels, same_shape=True, my_fun=nn.Conv2D, **kwargs):
+    def __init__(self, channels, in_channels, same_shape=True, my_fun=nn.Conv2D, use_bn=True, **kwargs):
         super(Residual, self).__init__(**kwargs)
         self.same_shape = same_shape
+        self.use_bn = use_bn
         if not same_shape:
             self.conv0 = my_fun(channels, in_channels=in_channels[0],
                                 kernel_size=3, padding=1, strides=2)
             self.a0 = mPReLU(channels)
-            self.b0 = new_BN()
+            if self.use_bn: self.b0 = new_BN()
             in_channels[0] = channels
         self.conv1 = my_fun(channels, kernel_size=3,
                             in_channels=in_channels[0], padding=1)
         self.a1 = mPReLU(channels)
-        self.b1 = new_BN()
+        if self.use_bn: self.b1 = new_BN()
         in_channels[0] = channels
         self.conv2 = my_fun(channels, kernel_size=3,
                             in_channels=in_channels[0], padding=1)
         self.a2 = mPReLU(channels)
-        self.b2 = new_BN()
+        if self.use_bn: self.b2 = new_BN()
         in_channels[0] = channels
 
     def forward(self, x):
         if not self.same_shape:
             x = self.a0(self.conv0(x))
-            x = self.b0(x)
+            if self.use_bn: x = self.b0(x)
         out = self.a1(self.conv1(x))
-        out = self.b1(out)
+        if self.use_bn: out = self.b1(out)
         out = self.a2(self.conv2(out))
-        out = self.b2(out)
+        if self.use_bn: out = self.b2(out)
         return out + x
 
 
@@ -142,7 +143,7 @@ class mPReLU(nn.HybridBlock):
 
 class SphereNet20(nn.Block):
     # http://ethereon.github.io/netscope/#/gist/20f6ddf70a35dec5019a539a502bccc5
-    def __init__(self, num_classes=10574, verbose=False, my_fun=nn.Conv2D, **kwargs):
+    def __init__(self, num_classes=10574, verbose=False, my_fun=nn.Conv2D, use_bn=True, **kwargs):
         super(SphereNet20, self).__init__(**kwargs)
         self.verbose = verbose
         self.feature = True  # weather only fc1 be returned or train with a classifier
@@ -151,20 +152,20 @@ class SphereNet20(nn.Block):
         with self.name_scope():
             # block 1
             self.net = nn.Sequential()
-            b1 = Residual(64, in_put, my_fun=my_fun, same_shape=False)
+            b1 = Residual(64, in_put, my_fun=my_fun, use_bn=use_bn, same_shape=False)
 
             # block 2
-            b2_1 = Residual(128, in_put, my_fun=my_fun, same_shape=False)
-            b2_2 = Residual(128, in_put, my_fun=my_fun)
+            b2_1 = Residual(128, in_put, my_fun=my_fun, use_bn=use_bn, same_shape=False)
+            b2_2 = Residual(128, in_put, my_fun=my_fun, use_bn=use_bn)
 
             # block3
-            b3_1 = Residual(256, in_put, my_fun=my_fun, same_shape=False)
-            b3_2 = Residual(256, in_put, my_fun=my_fun)
-            b3_3 = Residual(256, in_put, my_fun=my_fun)
-            b3_4 = Residual(256, in_put, my_fun=my_fun)
+            b3_1 = Residual(256, in_put, my_fun=my_fun, use_bn=use_bn, same_shape=False)
+            b3_2 = Residual(256, in_put, my_fun=my_fun, use_bn=use_bn)
+            b3_3 = Residual(256, in_put, my_fun=my_fun, use_bn=use_bn)
+            b3_4 = Residual(256, in_put, my_fun=my_fun, use_bn=use_bn)
 
             # block 4
-            b4 = Residual(512, in_put, my_fun=my_fun, same_shape=False)
+            b4 = Residual(512, in_put, my_fun=my_fun, use_bn=use_bn, same_shape=False)
             f5 = nn.Dense(512, in_units=21504)  #
             self.f6 = AngleLinear(512, num_classes)
             self.net.add(b1, b2_1, b2_2, b3_1, b3_2, b3_3, b3_4, b4, f5)
