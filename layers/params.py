@@ -6,7 +6,10 @@ gamma = 0.0000125
 power = 1
 c_rate = -0.9
 iter_stop = 450000
-sw = SummaryWriter(logdir='log_bn_dy', flush_secs=5)
+
+root = 'log_4dy_Ns'
+sw = SummaryWriter(logdir=root, flush_secs=5)
+kept_in_kernel = 3
 
 
 class mask_param(object):
