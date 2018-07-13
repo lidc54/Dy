@@ -7,7 +7,6 @@ from params import *
 
 
 # from mxboard import *
-
 # sw = SummaryWriter(logdir='/home/ldc/data/logs', flush_secs=5)
 
 
@@ -73,6 +72,40 @@ def assign_mask(weight, mask, key=None):
     return mask
 
 
+def constrain_kernal_num():
+    # L1_loss = loss.L1Loss()
+    exclude = ['conv0_', 'conv1_', 'conv2_', 'alpha', 'bias', 'dense']
+
+    def Not_excluded(k):
+        for i in exclude:
+            if i in k:
+                return False
+        return True
+
+    num_kernel = [constrain_conv(v, k) for k, v in global_param.netMask.items() if Not_excluded(k)]
+    loss_nums = reduce(lambda x, y: x + y, num_kernel)
+    # Calculate the weight for mask
+    iter_ = global_param.iter
+    r = 1.0 - math.pow(1 + gamma * iter_, -power)
+    return loss_nums * r
+
+
+# a convlution with constrain of limited paramers
+def constrain_conv(mask, name):
+    out = mask
+    for i in range(2): out = nd.sum(out, axis=-1)
+    channel = out.shape[1]
+    out1 = nd.abs(out - kept_in_kernel)  # close to kept_in_kernel,for example 3;
+    out2 = nd.abs(out)  # close t0 0
+    out_c = nd.where(out1 < out2, out1, out2)
+    w = out_c / nd.sum(out_c)  # distribution the derivative
+    constrain = nd.sum(w * out_c) / channel
+    tag_key = 'K_' + '_'.join(name.split('_')[1:])
+    sw.add_scalar(tag=tag_key, value=constrain.asscalar(), global_step=global_param.iter)
+    return constrain
+
+
+# gamma in BN will be used for dynamic compress in a structure way.
 class new_BN(nn.BatchNorm):
     def __init__(self):
         super(new_BN, self).__init__()
