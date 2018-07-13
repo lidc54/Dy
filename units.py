@@ -22,6 +22,7 @@ def getParmas(mnet, mode='conv'):
 
 
 def init_sphere(mnet, loaded_model, ctx=mxnet.cpu()):
+    gammas = {}
     if not os.path.exists(loaded_model):
         for k, v in mnet.collect_params().items():
             if 'bias' in k:
@@ -36,7 +37,7 @@ def init_sphere(mnet, loaded_model, ctx=mxnet.cpu()):
                     v.initialize(mxnet.initializer.Constant(1.0), ctx=ctx)
                 elif ('beta' in k or 'mean' in k) and sum(v.shape) == 0:
                     v.initialize(mxnet.initializer.Constant(0.0), ctx=ctx)
-    gammas = {k: v.data() for k, v in mnet.collect_params().items() if 'gamma' in k}
+        gammas = {k: v.data() for k, v in mnet.collect_params().items() if 'gamma' in k}
     return gammas
 
 
