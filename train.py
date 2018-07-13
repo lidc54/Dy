@@ -5,22 +5,23 @@ import data, pickle, os
 
 from layers.dy_conv import origin_conv, new_conv, constrain_kernal_num
 from layers.params import global_param, sw, root
-from units import getParmas, init_sphere
+from units import getParmas, init_sphere, load_gamma
 
 
 def train_model():
-    my_fun = new_conv
+    my_fun = origin_conv
     save_global_prams = True
-    loaded_model = root + "/spherenet_ft_Ns.model"
+    loaded_model = root + "/spherenet_bn_4dy.model"
     loaded_param = root + "/global.param"
-    ctx = mx.gpu(7)
+    ctx = mx.gpu(3)
+    use_bn = True  # whether Batch normalization will be used in the net
     # several paramers need update for different duty |
     # and notice params need to be updated
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
     data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
     batch_size = 192
-    mnet = SphereNet20(my_fun=my_fun, use_bn=False)
+    mnet = SphereNet20(my_fun=my_fun, use_bn=use_bn)
     lr = 0.000001
     stop_epoch = 300
 
@@ -61,7 +62,10 @@ def train_model():
             with autograd.record():
                 out = mnet(batch)
                 loss_a = Aloss(out[0], out[1], label)
-                loss_nums = constrain_kernal_num()
+                if use_bn:
+                    loss_nums = load_gamma(gammas)
+                else:
+                    loss_nums = constrain_kernal_num()
                 loss = loss_a + loss_nums
             loss.backward()
             trainer.step(batch_size)
