@@ -20,17 +20,17 @@ class Residual(nn.Block):
             self.conv0 = my_fun(channels, in_channels=in_channels[0],
                                 kernel_size=3, padding=1, strides=2)
             self.a0 = mPReLU(channels)
-            if self.use_bn: self.b0 = new_BN()
+            if self.use_bn: self.b0 = nn.BatchNorm()
             in_channels[0] = channels
         self.conv1 = my_fun(channels, kernel_size=3,
                             in_channels=in_channels[0], padding=1)
         self.a1 = mPReLU(channels)
-        if self.use_bn: self.b1 = new_BN()
+        if self.use_bn: self.b1 = nn.BatchNorm()
         in_channels[0] = channels
         self.conv2 = my_fun(channels, kernel_size=3,
                             in_channels=in_channels[0], padding=1)
         self.a2 = mPReLU(channels)
-        if self.use_bn: self.b2 = new_BN()
+        if self.use_bn: self.b2 = nn.BatchNorm()
         in_channels[0] = channels
 
     def forward(self, x):
