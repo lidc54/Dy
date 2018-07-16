@@ -3,23 +3,27 @@ from mxnet import gluon, autograd
 import mxnet as mx
 import data, pickle, os
 
-from layers.dy_conv import origin_conv, new_conv
-from layers.params import global_param, sw
+from layers.dy_conv import origin_conv, new_conv, constrain_kernal_num
+from layers.params import global_param, sw, root
 from units import getParmas, init_sphere
 
 
 def train_model():
-    my_fun = origin_conv
-    mnet = SphereNet20(my_fun=my_fun)
-    ctx = mx.gpu(3)
-    lr = 0.000001
-    batch_size = 192
-    stop_epoch = 300
-    loaded_model = "log_bn_dy/spherenet_bn_4dy.model"
-    loaded_param = "log_bn_dy/global.param"
-    data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
-
+    my_fun = new_conv
     save_global_prams = True
+    loaded_model = root + "/spherenet_ft_Ns.model"
+    loaded_param = root + "/global.param"
+    ctx = mx.gpu(7)
+    # several paramers need update for different duty |
+    # and notice params need to be updated
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+    data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
+    batch_size = 192
+    mnet = SphereNet20(my_fun=my_fun, use_bn=False)
+    lr = 0.000001
+    stop_epoch = 300
+
     # initia the net and return paramers of bn -- gamma
     gammas = init_sphere(mnet, loaded_model, ctx)
     # data iteratier
@@ -56,13 +60,15 @@ def train_model():
             global_param.iter = i + j
             with autograd.record():
                 out = mnet(batch)
-                loss = Aloss(out[0], out[1], label)
-                # loss_bn = reduce(lambda x, y: x + y, [L1_loss(v) for k, v in gammas])
-                # loss = loss_a + loss_bn
+                loss_a = Aloss(out[0], out[1], label)
+                loss_nums = constrain_kernal_num()
+                loss = loss_a + loss_nums
             loss.backward()
             trainer.step(batch_size)
-            value = loss.asscalar() / batch_size
+            value2 = loss_nums.asscalar()
+            value = loss_a.asscalar() / batch_size + value2
             sw.add_scalar(tag='Loss', value=value, global_step=i + j)
+            sw.add_scalar(tag='K_Loss', value=value2, global_step=i + j)
             if i % 200 == 0:
                 print('iter:%d,loss:%4.3f' % (i + j, value))
             # if isinstance(my_fun(1, 1), new_conv):

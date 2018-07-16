@@ -1,4 +1,5 @@
 from layers.params import global_param
+from layers.dy_conv import assign_mask
 from mxnet import nd
 import mxnet, os
 
@@ -22,22 +23,44 @@ def getParmas(mnet, mode='conv'):
 
 
 def init_sphere(mnet, loaded_model, ctx=mxnet.cpu()):
-    if not os.path.exists(loaded_model):
-        for k, v in mnet.collect_params().items():
-            if 'bias' in k:
+    for k, v in mnet.collect_params().items():
+        if 'bias' in k:
+            v.initialize(mxnet.initializer.Constant(0.0), ctx=ctx)
+        elif 'batchnorm' in k:
+            if 'gamma' in k or 'var' in k:
+                v.initialize(mxnet.initializer.Constant(1.0), ctx=ctx)
+            elif 'beta' in k or 'mean' in k:
                 v.initialize(mxnet.initializer.Constant(0.0), ctx=ctx)
-                continue
+        else:
             v.initialize(mxnet.initializer.Xavier(magnitude=3), ctx=ctx)
-    else:
-        mnet.load_params(loaded_model, ctx=ctx, allow_missing=True)
-        for k, v in mnet.collect_params().items():
-            if 'batchnorm' in k:
-                if ('gamma' in k or 'var' in k) and sum(v.shape) == 0:
-                    v.initialize(mxnet.initializer.Constant(1.0), ctx=ctx)
-                elif ('beta' in k or 'mean' in k) and sum(v.shape) == 0:
-                    v.initialize(mxnet.initializer.Constant(0.0), ctx=ctx)
+    # load exist paramers
+    mnet.load_params(loaded_model, ctx=ctx, allow_missing=True)
     gammas = {k: v.data() for k, v in mnet.collect_params().items() if 'gamma' in k}
     return gammas
+
+
+def load_gamma(gammas):
+    # load gamma in the net to update mask
+    loss = []
+    for key, gamma in gammas.items():
+        global_param.netMask[key] = assign_mask(gamma, global_param.netMask[key], key)
+        mask = 1 - global_param.netMask[key]
+        loss.append(loss_gamma(mask, gamma))
+    out = reduce(lambda x, y: x + y, loss)
+    return out
+
+
+def loss_gamma(mask, weight):
+    # set L1 regularization for masked gamma
+    # gamma only have one dimension
+    channel = weight.shape[0]
+    compress_target = nd.abs(mask * weight)
+    all = nd.sum(compress_target)
+    if not all.asscalar():
+        return all
+    w = compress_target / all
+    loss = nd.sum(w * compress_target) / channel
+    return loss
 
 
 def get_sparse_ratio():
