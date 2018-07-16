@@ -211,7 +211,32 @@ def load_model():
     return mnet
 
 
+def check_gamma():
+    from units import init_sphere
+    my_fun = origin_conv
+    mnet = SphereNet20(my_fun=my_fun)
+    ctx = mx.cpu()
+    # lr = 0.000001
+    # batch_size = 192
+    # stop_epoch = 300
+    loaded_model = "log_bn_dy/spherenet_bn_4dy.model"
+    # loaded_param = "log_bn_dy/global.param"
+    # data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
+
+    # save_global_prams = True
+    # initia the net and return paramers of bn -- gamma
+    gammas = init_sphere(mnet, loaded_model, ctx)
+    for k, v in gammas.items():
+        sum = nd.sum(v)
+        n_count = nd.sum(v != 0)
+        mean = sum / n_count
+        std = nd.sum(v ** 2) - n_count * (mean ** 2)
+        std = nd.sqrt(std / n_count)
+        print k, 'mean:%d, std:%d' % (mean.asscalar(), std.asscalar())
+
+
 if __name__ == "__main__":
     # mnet = init_model()
-    load_model()
+    # load_model()
+    check_gamma()
     print('o')
