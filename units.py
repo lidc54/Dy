@@ -39,12 +39,22 @@ def init_sphere(mnet, loaded_model, ctx=mxnet.cpu()):
     return gammas
 
 
-def load_gamma(gammas):
+def load_gamma(gammas, dropout=False, ratio=0.2):
     # load gamma in the net to update mask
     loss = []
     for key, gamma in gammas.items():
         global_param.netMask[key] = assign_mask(gamma, global_param.netMask[key], key)
         mask = 1 - global_param.netMask[key]
+        # if dropout, some fliters (ratio) will freeze
+        if dropout:
+            length = mask.shape[0]
+            select = int(length * ratio)
+            idx = nd.random.shuffle(nd.arange(length))[:select].astype('int32').asnumpy()
+            Dmask = nd.zeros_like(mask).asnumpy()
+            Dmask[idx] = 1
+            Dmask = nd.array((Dmask + mask.asnumpy()) % 2).as_in_context(mask.context)
+            mask = mask + Dmask
+
         loss.append(loss_gamma(mask, gamma))
     out = reduce(lambda x, y: x + y, loss)
     return out
