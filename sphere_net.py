@@ -212,32 +212,73 @@ def load_model():
     return mnet
 
 
-def check_gamma():
+def build_net(loaded_model, use_bn=True):
     from units import init_sphere
     my_fun = origin_conv
-    mnet = SphereNet20(my_fun=my_fun)
+    mnet = SphereNet20(my_fun=my_fun, use_bn=use_bn)
     ctx = mx.cpu()
-    # lr = 0.000001
-    # batch_size = 192
-    # stop_epoch = 300
-    loaded_model = "log_bn_dy/spherenet_bn_4dy.model"
-    # loaded_param = "log_bn_dy/global.param"
-    # data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
-
-    # save_global_prams = True
-    # initia the net and return paramers of bn -- gamma
     gammas = init_sphere(mnet, loaded_model, ctx)
+    return mnet, gammas
+
+
+def mean_std(v):
+    sum = nd.sum(v)
+    n_count = nd.sum(v != 0)
+    mean = sum / n_count
+    std = nd.sum(v ** 2) - n_count * (mean ** 2)
+    std = nd.sqrt(std / n_count)
+    return mean, std
+
+
+def check_gamma():
+    loaded_model = "log_bn_dy/spherenet_bn_4dy.model"
+    _, gammas = build_net(loaded_model)
     for k, v in gammas.items():
-        sum = nd.sum(v)
-        n_count = nd.sum(v != 0)
-        mean = sum / n_count
-        std = nd.sum(v ** 2) - n_count * (mean ** 2)
-        std = nd.sqrt(std / n_count)
+        mean, std = mean_std(v)
         print k, 'mean:%d, std:%d' % (mean.asscalar(), std.asscalar())
+
+
+def check_kernel_nums():
+    loaded_model = "log_4dy_Ns/spherenet_ft_Ns.model"
+    mnet, _ = build_net(loaded_model, use_bn=False)
+    #
+    # for k, v in mnet.collect_params().items():
+    #     data = v.data()
+    #     mean, std = mean_std(data)
+    #     print k, 'mean--- %.5f---,with the shape std---%.5f---with the shape ' % (
+    #         mean.asscalar(), std.asscalar()), v.shape
+    loaded_param = "log_4dy_Ns/global.param"
+    import pickle, math
+    with open(loaded_param)as f:
+        dd = pickle.load(f)
+    pramer = dd.netMask
+    import matplotlib.pyplot as plt
+    cout, cols, idx = 0.0, 5, 0
+    for k in pramer.keys():
+        if 'weight' in k:
+            cout += 1
+    rows = int(math.ceil(cout / cols))
+
+    for k, v in pramer.items():
+        if 'weight' not in k:
+            continue
+        tag = k.split('_')[1]
+        idx += 1
+        out = v
+        for i in range(2): out = nd.sum(out, axis=-1)
+        out = nd.sort(out.reshape(-1)).asnumpy()
+        x = range(len(out))
+        print idx
+        ax = plt.subplot(rows, cols, idx)
+        ax.plot(x, out, label=tag)
+        ax.set_yticks(range(9))
+        ax.legend(loc='best')
+    plt.show()
+
+    print('o')
 
 
 if __name__ == "__main__":
     # mnet = init_model()
     # load_model()
-    check_gamma()
-    print('o')
+    check_kernel_nums()
