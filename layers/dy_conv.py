@@ -63,6 +63,7 @@ def assign_mask(weight, mask, key=None):
         tag = '_'.join(tag)
         value = 1.0 * count.asscalar() / all_count
         sw.add_scalar(tag=tag, value=value, global_step=global_param.iter)
+        sw.add_scalar(tag=tag + '_std', value=std, global_step=global_param.iter)
     # Calculate the weight mask and bias mask with probability
     r = random.random()
     if math.pow(1 + gamma * iter_, -power) > r and iter_ < iter_stop:
