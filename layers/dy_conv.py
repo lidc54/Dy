@@ -86,8 +86,8 @@ def constrain_kernal_num():
     loss_nums = reduce(lambda x, y: x + y, num_kernel)
     # Calculate the weight for mask
     iter_ = global_param.iter
-    r = 1.0 - math.pow(1 + gamma * iter_, -power)
-    return loss_nums * r
+    r = 1.0 - math.pow(1 + advanced_iter * gamma * iter_, -power)
+    return loss_nums * r * nums_power
 
 
 # a convlution with constrain of limited paramers
