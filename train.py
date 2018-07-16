@@ -13,8 +13,9 @@ def train_model():
     save_global_prams = True
     loaded_model = root + "/spherenet_bn_4dy.model"
     loaded_param = root + "/global.param"
-    ctx = mx.gpu(3)
+    ctx = mx.gpu(1)
     use_bn = True  # whether Batch normalization will be used in the net
+    dropout = True  # whether gamma fliter will be random compressed
     # several paramers need update for different duty |
     # and notice params need to be updated
 
@@ -63,7 +64,7 @@ def train_model():
                 out = mnet(batch)
                 loss_a = Aloss(out[0], out[1], label)
                 if use_bn:
-                    loss_nums = load_gamma(gammas)
+                    loss_nums = load_gamma(gammas, dropout=dropout)
                 else:
                     loss_nums = constrain_kernal_num()
                 loss = loss_a + loss_nums
