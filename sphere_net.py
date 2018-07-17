@@ -239,28 +239,44 @@ def check_gamma():
 
 
 def check_kernel_nums():
-    loaded_model = "log_4dy_Ns/spherenet_ft_Ns.model"
-    mnet, _ = build_net(loaded_model, use_bn=False)
+    # loaded_model = "log_4dy_Ns2/spherenet_ft_Ns.model"
+    # mnet, _ = build_net(loaded_model, use_bn=False)
     #
     # for k, v in mnet.collect_params().items():
     #     data = v.data()
     #     mean, std = mean_std(data)
     #     print k, 'mean--- %.5f---,with the shape std---%.5f---with the shape ' % (
     #         mean.asscalar(), std.asscalar()), v.shape
-    loaded_param = "log_4dy_Ns/global.param"
+    exclude = ['conv0_', 'conv1_', 'conv2_', 'alpha', 'bias', 'dense']
+    loaded_param = "log_4dy_Ns3/global.param"
     import pickle, math
     with open(loaded_param)as f:
         dd = pickle.load(f)
     pramer = dd.netMask
+    print 'iter:',dd.iter
     import matplotlib.pyplot as plt
     cout, cols, idx = 0.0, 5, 0
+    next = False
     for k in pramer.keys():
+        for x in exclude:
+            if x in k:
+                next = True
+                break
+        if next:
+            next = False
+            continue
         if 'weight' in k:
             cout += 1
     rows = int(math.ceil(cout / cols))
 
+    next = False
     for k, v in pramer.items():
-        if 'weight' not in k:
+        for x in exclude:
+            if x in k:
+                next = True
+                break
+        if 'weight' not in k or next:
+            next = False
             continue
         tag = k.split('_')[1]
         idx += 1
@@ -268,7 +284,7 @@ def check_kernel_nums():
         for i in range(2): out = nd.sum(out, axis=-1)
         out = nd.sort(out.reshape(-1)).asnumpy()
         x = range(len(out))
-        print idx
+        # print idx
         ax = plt.subplot(rows, cols, idx)
         ax.plot(x, out, label=tag)
         ax.set_yticks(range(9))
