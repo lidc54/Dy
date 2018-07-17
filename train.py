@@ -13,7 +13,7 @@ def train_model():
     save_global_prams = True
     loaded_model = root + "/spherenet_ft_Ns.model"
     loaded_param = root + "/global.param"
-    ctx = mx.gpu(7)
+    ctx = mx.gpu(2)
     # several paramers need update for different duty |
     # and notice params need to be updated
 
