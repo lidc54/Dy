@@ -1,4 +1,4 @@
-from layers.params import global_param
+from layers.params import global_param, global_dropout
 from layers.dy_conv import assign_mask
 from mxnet import nd
 import mxnet, os
@@ -47,13 +47,8 @@ def load_gamma(gammas, dropout=False, ratio=0.2):
         mask = 1 - global_param.netMask[key]
         # if dropout, some fliters (ratio) will freeze
         if dropout:
-            length = mask.shape[0]
-            select = int(length * ratio)
-            idx = nd.random.shuffle(nd.arange(length))[:select].astype('int32').asnumpy()
-            Dmask = nd.zeros_like(mask).asnumpy()
-            Dmask[idx] = 1
-            Dmask = nd.array((Dmask + mask.asnumpy()) % 2).as_in_context(mask.context)
-            mask = mask + Dmask
+            Dmask = global_dropout.get_select(mask, key, ratio)
+            mask = (mask + Dmask) % 2
 
         loss.append(loss_gamma(mask, gamma))
     out = reduce(lambda x, y: x + y, loss)
