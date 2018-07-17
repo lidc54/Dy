@@ -2,12 +2,12 @@ import mxnet as mx
 from mxnet import nd
 from mxboard import SummaryWriter
 
-gamma = 0.0000125
+gamma = 0.0000125  # about 10w to 1
 power = 1
 c_rate = -0.9
 iter_stop = 450000
-nums_power = 10
-advanced_iter = 10  # defalut is 1:not to advanced
+nums_power = 10000
+advanced_iter = 0.5  # defalut is 1:not to advanced
 
 root = 'log_4dy_Ns2'
 sw = SummaryWriter(logdir=root, flush_secs=5)
