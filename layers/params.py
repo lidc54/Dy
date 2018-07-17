@@ -27,6 +27,28 @@ class mask_param(object):
             self.netMask[k] = v.as_in_context(ctx)
 
 
+# this class was prepare the paramers in carry out activiation
+class dropout_paramer(object):
+    def __init__(self):
+        super(dropout_paramer, self).__init__()
+        self.selected = {}
+
+    def init_select(self, mask, key, ratio):
+        length = mask.shape[0]
+        select = int(length * ratio)
+        idx = nd.random.shuffle(nd.arange(length))[:select].astype('int32').asnumpy()
+        Dmask = nd.zeros_like(mask).asnumpy()
+        Dmask[idx] = 1
+        Dmask = nd.array(Dmask).as_in_context(mask.context)
+        self.selected[key] = Dmask
+
+    def get_select(self, mask, key, ratio):
+        if global_param.iter == 0:
+            self.init_select(mask, key, ratio)
+        return self.selected[key]
+
+
+global_dropout = dropout_paramer()
 # mask and iter times for convlution of BatchNorm
 # so mask type has a scope of ['conv','bn']
 global_param = mask_param()
