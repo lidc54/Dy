@@ -13,7 +13,7 @@ def train_model():
     save_global_prams = True
     loaded_model = root + "/spherenet_bn_4dy.model"
     loaded_param = root + "/global.param"
-    ctx = mx.gpu(1)
+    ctx = mx.gpu(3)
     use_bn = True  # whether Batch normalization will be used in the net
     dropout = True  # whether gamma fliter will be random compressed
     # several paramers need update for different duty |
@@ -57,6 +57,7 @@ def train_model():
     for epoch in range(stop_epoch):
         j = epoch * epoch_train
         for i, (batch, label) in enumerate(train_data_loader):
+            if epoch > 10: dropout = False
             batch = batch.as_in_context(ctx)
             label = label.as_in_context(ctx)
             global_param.iter = i + j
