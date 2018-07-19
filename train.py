@@ -61,7 +61,7 @@ def train_model():
             with autograd.record():
                 out = mnet(batch)
                 loss_a = Aloss(out[0], out[1], label)
-                loss_nums = constrain_kernal_num()
+                loss_nums = constrain_kernal_num(mnet)
                 loss = loss_a + loss_nums
             loss.backward()
             trainer.step(batch_size)
