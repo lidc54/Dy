@@ -54,9 +54,11 @@ def assign_mask(weight, mask, key=None):
     mu = mu / count
     std = std - count * nd.power(mu, 2)
     std = nd.sqrt(std / count)
-    mu = mu.asscalar()
-    std = std.asscalar()
     if key:
+        global_param.netMask[key + '_muX'] = mu
+        global_param.netMask[key + '_stdX'] = std
+        mu = mu.asscalar()
+        std = std.asscalar()
         tag_key = '_'.join(key.split('_')[1:])
         tag_shape = reduce(lambda x, y: x + 'X' + y, map(str, masked.shape))
         tag = [tag_key, tag_shape, str(all_count)]
@@ -73,34 +75,69 @@ def assign_mask(weight, mask, key=None):
     return mask
 
 
-def constrain_kernal_num():
+def constrain_kernal_num(mnet):
     # L1_loss = loss.L1Loss()
-    exclude = ['conv0_', 'conv1_', 'conv2_', 'alpha', 'bias', 'dense']
+    exclude = ['conv0_', 'conv1_', 'conv2_', 'alpha', 'bias', 'dense', '_muX', '_stdX']
 
-    def Not_excluded(k):
+    def excluded(k):
         for i in exclude:
             if i in k:
-                return False
-        return True
+                return True
+        return False
 
-    num_kernel = [constrain_conv(v, k) for k, v in global_param.netMask.items() if Not_excluded(k)]
-    loss_nums = reduce(lambda x, y: x + y, num_kernel)
+    num_kernel = []
+    for k, v in global_param.netMask.items():
+        if excluded(k):
+            continue
+        w = mnet.collect_params()[k].data()
+        # masked = w * v
+        num_kernel.append(new_constrain_conv(w, k))
+
+    # num_kernel = [constrain_conv(v, k) for k, v in global_param.netMask.items() if Not_excluded(k)]
+    loss_nums = reduce(lambda x, y: x + y, num_kernel) / len(num_kernel)
     # Calculate the weight for mask
     iter_ = global_param.iter
     r = 1.0 - math.pow(1 + advanced_iter * gamma * iter_, -power)
     return loss_nums * r * nums_power
 
 
+# using top_k
+def new_constrain_conv(weight, name):
+    out = nd.abs(weight.reshape(list(weight.shape[:2]) + [-1]))
+    channel = out.shape[1]
+    mu, std = global_param.netMask[name + '_muX'], global_param.netMask[name + '_stdX']
+    tops = nd.topk(out, axis=-1, k=kept_in_kernel, ret_typ='mask')
+    # let these in tops stay in activ & others be lost
+    keep = (1.1 * (mu + c_rate * std) - out) * tops
+    keep = nd.where(keep > 0, keep, nd.zeros_like(keep))
+    discard = (out - 0.9 * (mu + c_rate * std)) * (1 - tops)
+    discard = nd.where(discard > 0, discard, nd.zeros_like(discard))
+    loss = nd.sum(keep) + nd.sum(discard)
+    tag_key = 'K_' + '_'.join(name.split('_')[1:])
+    sw.add_scalar(tag=tag_key, value=loss.asscalar(), global_step=global_param.iter)
+    # input*output;but output channels are almost same
+    return loss / channel
+
+
 # a convlution with constrain of limited paramers
-def constrain_conv(mask, name):
-    out = mask
-    for i in range(2): out = nd.sum(out, axis=-1)
+def constrain_conv(weight, v, name):
+    out = nd.abs(weight.reshape(list(weight.shape[:2]) + [-1]))
+    mask = v.reshape(list(weight.shape[:2]) + [-1])
+    mu, std = global_param.netMask[name + '_muX'], global_param.netMask[name + '_stdX']
+    size = list(out.shape)
+    # factor suppose as a shoulder
+    factor = nd.sort(out, axis=-1)[:, :, -3].reshape(size[:2] + [1]) - mu.asscalar()
+    bound = nd.ones_like(factor) * 0.5  # gamma has a great std now
+    factor = nd.where(factor > bound, factor, bound)
+    out = (out - mu) * zoom / factor
+    out = nd.sum(mask * nd.sigmoid(out), axis=-1)
+
     channel = out.shape[1]
     out1 = nd.abs(out - kept_in_kernel)  # close to kept_in_kernel,for example 3;
     out2 = nd.abs(out)  # close t0 0
     out_c = nd.where(out1 < out2, out1, out2)
-    w = out_c / nd.sum(out_c)  # distribution the derivative
-    constrain = nd.sum(w * out_c) / channel
+    # w = out_c / nd.sum(out_c)  # distribution the derivative
+    constrain = nd.sum(out_c) / channel
     tag_key = 'K_' + '_'.join(name.split('_')[1:])
     sw.add_scalar(tag=tag_key, value=constrain.asscalar(), global_step=global_param.iter)
     return constrain
