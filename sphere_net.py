@@ -247,13 +247,13 @@ def check_kernel_nums():
     #     mean, std = mean_std(data)
     #     print k, 'mean--- %.5f---,with the shape std---%.5f---with the shape ' % (
     #         mean.asscalar(), std.asscalar()), v.shape
-    exclude = ['conv0_', 'conv1_', 'conv2_', 'alpha', 'bias', 'dense']
-    loaded_param = "log_4dy_Ns3/global.param"
+    exclude = ['conv0_', 'conv1_', 'conv2_', 'alpha', 'bias', 'dense', '_weight_']  #
+    loaded_param = "log_4dy_Ns2/global.param"
     import pickle, math
     with open(loaded_param)as f:
         dd = pickle.load(f)
     pramer = dd.netMask
-    print 'iter:',dd.iter
+    print 'iter:', dd.iter
     import matplotlib.pyplot as plt
     cout, cols, idx = 0.0, 5, 0
     next = False
@@ -282,12 +282,18 @@ def check_kernel_nums():
         idx += 1
         out = v
         for i in range(2): out = nd.sum(out, axis=-1)
+        ax = plt.subplot(rows, cols, idx)
+
+        # plot
         out = nd.sort(out.reshape(-1)).asnumpy()
         x = range(len(out))
-        # print idx
-        ax = plt.subplot(rows, cols, idx)
         ax.plot(x, out, label=tag)
         ax.set_yticks(range(9))
+
+        # histogram
+        # out = out.reshape(-1).asnumpy()
+        # ax.hist(out, bins=27, label=tag)
+        # ax.set_xticks(range(9))
         ax.legend(loc='best')
     plt.show()
 
