@@ -4,7 +4,7 @@ import mxnet as mx
 import data, pickle, os
 
 from layers.dy_conv import origin_conv, new_conv, constrain_kernal_num
-from layers.params import global_param, sw, root
+from layers.params import global_param, sw, root, alpha
 from units import getParmas, init_sphere
 
 
@@ -13,7 +13,7 @@ def train_model():
     save_global_prams = True
     loaded_model = root + "/spherenet_ft_Ns.model"
     loaded_param = root + "/global.param"
-    ctx = mx.gpu(2)
+    ctx = mx.gpu(1)
     # several paramers need update for different duty |
     # and notice params need to be updated
 
@@ -21,7 +21,7 @@ def train_model():
     data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
     batch_size = 192
     mnet = SphereNet20(my_fun=my_fun, use_bn=False)
-    lr = 0.000001
+    lr = 0.00001
     stop_epoch = 300
 
     # initia the net and return paramers of bn -- gamma
@@ -62,7 +62,7 @@ def train_model():
                 out = mnet(batch)
                 loss_a = Aloss(out[0], out[1], label)
                 loss_nums = constrain_kernal_num(mnet)
-                loss = loss_a + loss_nums
+                loss = loss_a + loss_nums * alpha
             loss.backward()
             trainer.step(batch_size)
             value2 = loss_nums.asscalar()
