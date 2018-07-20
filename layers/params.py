@@ -11,6 +11,8 @@ root = 'log_bn_dy2'
 sw = SummaryWriter(logdir=root, flush_secs=5)
 kept_in_kernel = 3
 
+alpha = 10  # second punishment coeffcient
+
 
 class mask_param(object):
     def __init__(self, iter=0):
