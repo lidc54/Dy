@@ -65,7 +65,7 @@ def train_model():
                 out = mnet(batch)
                 loss_a = Aloss(out[0], out[1], label)
                 if use_bn:
-                    loss_nums = load_gamma_test(mnet, dropout=dropout, ratio=0.5)
+                    loss_nums = load_gamma_test(mnet)
                 else:
                     loss_nums = constrain_kernal_num()
                 loss = loss_a + loss_nums * alpha
