@@ -10,9 +10,11 @@ nums_power = 1
 advanced_iter = 0.5  # defalut is 1:not to advanced
 zoom = 5.0
 
-root = 'log_4dy_Ns2'
+root = 'log_4dy_Ns3'
 sw = SummaryWriter(logdir=root, flush_secs=5)
 kept_in_kernel = 3
+
+alpha = 5  # harder punishment for loss
 
 
 class mask_param(object):
