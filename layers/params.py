@@ -14,7 +14,7 @@ root = 'log_4dy_Ns3'
 sw = SummaryWriter(logdir=root, flush_secs=5)
 kept_in_kernel = 3
 
-alpha = 5  # harder punishment for loss
+alpha = 1  # harder punishment for loss
 
 
 class mask_param(object):
