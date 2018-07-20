@@ -4,8 +4,8 @@ import mxnet as mx
 import data, pickle, os
 
 from layers.dy_conv import origin_conv, new_conv, constrain_kernal_num
-from layers.params import global_param, sw, root
-from units import getParmas, init_sphere, load_gamma
+from layers.params import global_param, sw, root, alpha
+from units import getParmas, init_sphere, load_gamma, load_gamma_test
 
 
 def train_model():
@@ -23,7 +23,7 @@ def train_model():
     data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
     batch_size = 192
     mnet = SphereNet20(my_fun=my_fun, use_bn=use_bn)
-    lr = 0.000001
+    lr = 0.0001
     stop_epoch = 300
 
     # initia the net and return paramers of bn -- gamma
@@ -50,7 +50,7 @@ def train_model():
         if isinstance(my_fun(1, 1), new_conv):
             global_param.set_param(params.keys(), ctx=ctx)
         elif isinstance(my_fun(1, 1), origin_conv):
-            global_param.set_param(gammas.keys(), ctx=ctx)
+            global_param.set_param(gammas, ctx=ctx)
 
     epoch_train = len(train_data_loader)
     # train
@@ -65,10 +65,10 @@ def train_model():
                 out = mnet(batch)
                 loss_a = Aloss(out[0], out[1], label)
                 if use_bn:
-                    loss_nums = load_gamma(gammas, dropout=dropout, ratio=0.5)
+                    loss_nums = load_gamma_test(mnet, dropout=dropout, ratio=0.5)
                 else:
                     loss_nums = constrain_kernal_num()
-                loss = loss_a + loss_nums
+                loss = loss_a + loss_nums * alpha
             loss.backward()
             trainer.step(batch_size)
             value2 = loss_nums.asscalar()
