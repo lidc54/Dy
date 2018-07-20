@@ -108,15 +108,25 @@ def new_constrain_conv(weight, name):
     mu, std = global_param.netMask[name + '_muX'], global_param.netMask[name + '_stdX']
     tops = nd.topk(out, axis=-1, k=kept_in_kernel, ret_typ='mask')
     # let these in tops stay in activ & others be lost
+    zeros = nd.zeros_like(out)
     keep = (1.1 * (mu + c_rate * std) - out) * tops
-    keep = nd.where(keep > 0, keep, nd.zeros_like(keep))
+    keep = nd.where(keep > 0, keep, zeros)
     discard = (out - 0.9 * (mu + c_rate * std)) * (1 - tops)
-    discard = nd.where(discard > 0, discard, nd.zeros_like(discard))
+    discard = nd.where(discard > 0, discard, zeros)
+
+    # channels
+    # keep_channels = nd.sum(keep != 0, axis=-1)
+    # ones = nd.ones_like(keep_channels)
+    # keep_channels = nd.where(keep_channels > 1, keep_channels, ones)
+    # discard_channels = nd.sum(discard != 0, axis=-1)
+    # discard_channels = nd.where(discard_channels > 1, discard_channels, ones)
+    # nd.sum(keep, axis=-1) / keep_channels + nd.sum(discard, axis=-1) / discard_channels
+    # channel = nd.sum(keep != 0, axis=-1) + nd.sum(discard != 0, axis=-1)
     loss = nd.sum(keep) + nd.sum(discard)
     tag_key = 'K_' + '_'.join(name.split('_')[1:])
     sw.add_scalar(tag=tag_key, value=loss.asscalar(), global_step=global_param.iter)
     # input*output;but output channels are almost same
-    return loss / channel
+    return loss  # / channel
 
 
 # a convlution with constrain of limited paramers
