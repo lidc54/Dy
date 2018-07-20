@@ -77,7 +77,7 @@ def assign_mask(weight, mask, key=None):
 
 def constrain_kernal_num(mnet):
     # L1_loss = loss.L1Loss()
-    exclude = ['conv0_', 'conv1_', 'conv2_', 'alpha', 'bias', 'dense', '_muX', '_stdX']
+    exclude = ['alpha', 'bias', 'dense', '_muX', '_stdX']  # 'conv0_', 'conv1_', 'conv2_',
 
     def excluded(k):
         for i in exclude:
