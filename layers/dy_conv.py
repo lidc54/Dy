@@ -58,7 +58,7 @@ def assign_mask(weight, mask, key=None):
     std = std.asscalar()
     if key:
         tag_key = '_'.join(key.split('_')[1:])
-        tag_shape = reduce(lambda x, y: x + 'X' + y, map(str, masked.shape))
+        tag_shape = reduce(lambda x, y: x + 'X' + y, map(str, weight.shape))
         tag = [tag_key, tag_shape, str(all_count)]
         tag = '_'.join(tag)
         value = 1.0 * count.asscalar() / all_count
