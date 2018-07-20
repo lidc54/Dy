@@ -58,7 +58,7 @@ def load_gamma_test(mnet):
         if not 'gamma' in key:
             continue
         gamma = value.data()
-        mu = nd.mean(gamma)
+        mu = nd.mean(gamma).asscalar()
         # global_param.netMask[key] = assign_mask(gamma, global_param.netMask[key], key)
         # mask = 1 - global_param.netMask[key]
         # # if dropout, some fliters (ratio) will freeze
@@ -68,7 +68,7 @@ def load_gamma_test(mnet):
         #     Dmask = nd.topk(gamma, k=k, ret_typ='mask', is_ascend=True)
         #     mask = (mask + Dmask) % 2
         tag_key = '_'.join(key.split('_')[1:])
-        sw.add_scalar(tag=tag_key, value=mu.asscalar(), global_step=global_param.iter)
+        sw.add_scalar(tag=tag_key, value=mu, global_step=global_param.iter)
         target = nd.zeros_like(gamma).as_in_context(gamma.context)
         this_loss = loss_g(gamma / mu, target)
         loss.append(nd.sum(this_loss / gamma.shape[0]))
