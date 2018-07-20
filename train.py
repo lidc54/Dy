@@ -13,7 +13,7 @@ def train_model():
     save_global_prams = True
     loaded_model = root + "/spherenet_bn_4dy.model"
     loaded_param = root + "/global.param"
-    ctx = mx.gpu(3)
+    ctx = mx.gpu(4)
     use_bn = True  # whether Batch normalization will be used in the net
     dropout = True  # whether gamma fliter will be random compressed
     # several paramers need update for different duty |
