@@ -34,13 +34,19 @@ class Residual(nn.Block):
         in_channels[0] = channels
 
     def forward(self, x):
+        # resnet-- place bN before conv
         if not self.same_shape:
-            x = self.a0(self.conv0(x))
             if self.use_bn: x = self.b0(x)
-        out = self.a1(self.conv1(x))
-        if self.use_bn: out = self.b1(out)
-        out = self.a2(self.conv2(out))
+            x = self.a0(self.conv0(x))
+
+        if self.use_bn:
+            out = self.b1(x)
+            out = self.a1(self.conv1(out))
+        else:
+            out = self.a1(self.conv1(x))
+
         if self.use_bn: out = self.b2(out)
+        out = self.a2(self.conv2(out))
         return out + x
 
 
