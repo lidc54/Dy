@@ -2,18 +2,19 @@ import mxnet as mx
 from mxnet import nd
 from mxboard import SummaryWriter
 
-gamma = 0.0000125  # about 10w to 1
+gamma = 0.0000025  # about 10w to 1
 power = 1
 c_rate = -0.9
-iter_stop = 450000
+iter_stop = 4500000
 nums_power = 1
 advanced_iter = 0.5  # defalut is 1:not to advanced
 zoom = 5.0
 
-root = 'log_4dy_Ns3'
+root = 'log_4dy_Ns2'
 sw = SummaryWriter(logdir=root, flush_secs=5)
 kept_in_kernel = 3
 
+Is_kept_ratio = 0.9  # prefer the nums in kernel equal to kept_int_kernel
 alpha = 1  # harder punishment for loss
 
 
