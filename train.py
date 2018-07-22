@@ -13,7 +13,7 @@ def train_model():
     save_global_prams = True
     loaded_model = root + "/spherenet_ft_Ns.model"
     loaded_param = root + "/global.param"
-    ctx = mx.gpu(1)
+    ctx = mx.gpu(2)
     # several paramers need update for different duty |
     # and notice params need to be updated
 
@@ -21,7 +21,7 @@ def train_model():
     data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
     batch_size = 192
     mnet = SphereNet20(my_fun=my_fun, use_bn=False)
-    lr = 0.00001
+    lr = 0.000001
     stop_epoch = 300
 
     # initia the net and return paramers of bn -- gamma
