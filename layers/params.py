@@ -1,6 +1,7 @@
 import mxnet as mx
 from mxnet import nd
 from mxboard import SummaryWriter
+import math
 
 gamma = 0.0000025  # about 10w to 1
 power = 1
@@ -14,7 +15,6 @@ root = 'log_4dy_Ns2'
 sw = SummaryWriter(logdir=root, flush_secs=5)
 kept_in_kernel = 3
 
-Is_kept_ratio = 0.9  # prefer the nums in kernel equal to kept_int_kernel
 alpha = 1  # harder punishment for loss
 
 
@@ -23,9 +23,15 @@ class mask_param(object):
         super(mask_param, self).__init__()
         self.netMask = {}
         self.iter = iter
+        self.Is_kept_ratio = 0.9  # prefer the nums in kernel equal to kept_int_kernel
+        self.kept_ratio = 0.0
 
     def set_param(self, keys, ctx=mx.cpu()):
         self.netMask = dict(zip(keys, nd.array([1] * len(keys), ctx=ctx)))
+
+    def get_kept_ratio(self):
+        self.kept_ratio = self.Is_kept_ratio * (1 - math.pow(1 + gamma * self.iter, -power))
+        return self.kept_ratio
 
     def load_param(self, mp, ctx=mx.cpu()):
         self.iter = mp.iter
