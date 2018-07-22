@@ -248,7 +248,7 @@ def check_kernel_nums():
     #     print k, 'mean--- %.5f---,with the shape std---%.5f---with the shape ' % (
     #         mean.asscalar(), std.asscalar()), v.shape
     exclude = [ 'alpha', 'bias', 'dense', '_weight_']  #'conv0_', 'conv1_', 'conv2_',
-    loaded_param = "log_4dy_Ns2/global.param"
+    loaded_param = "log_4dy_Ns3/global.param"
     import pickle, math
     with open(loaded_param)as f:
         dd = pickle.load(f)
