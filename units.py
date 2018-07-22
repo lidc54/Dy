@@ -28,7 +28,7 @@ def init_sphere(mnet, loaded_model, ctx=mxnet.cpu()):
             v.initialize(mxnet.initializer.Constant(0.0), ctx=ctx)
         elif 'batchnorm' in k:
             if 'gamma' in k or 'var' in k:
-                v.initialize(mxnet.initializer.Constant(1.0), ctx=ctx)
+                v.initialize(mxnet.initializer.Constant(0.5), ctx=ctx)
             elif 'beta' in k or 'mean' in k:
                 v.initialize(mxnet.initializer.Constant(0.0), ctx=ctx)
         else:
@@ -50,14 +50,14 @@ def static(data):
     return mu, std
 
 
-def load_gamma_test(mnet):
+def load_gamma_test(mnet, iter):
     # load gamma in the net to update mask
     loss_g = mxnet.gluon.loss.L1Loss()
     loss = []
     for key, value in mnet.collect_params().items():
         if not 'gamma' in key:
             continue
-        gamma = value.data()
+        gamma = nd.abs(value.data())
         mu = nd.mean(gamma).asscalar()
         # global_param.netMask[key] = assign_mask(gamma, global_param.netMask[key], key)
         # mask = 1 - global_param.netMask[key]
@@ -68,7 +68,7 @@ def load_gamma_test(mnet):
         #     Dmask = nd.topk(gamma, k=k, ret_typ='mask', is_ascend=True)
         #     mask = (mask + Dmask) % 2
         tag_key = '_'.join(key.split('_')[1:])
-        sw.add_scalar(tag=tag_key, value=mu, global_step=global_param.iter)
+        sw.add_scalar(tag=tag_key, value=mu, global_step=iter)
         target = nd.zeros_like(gamma).as_in_context(gamma.context)
         this_loss = loss_g(gamma / mu, target)
         loss.append(nd.sum(this_loss / gamma.shape[0]))
