@@ -10,10 +10,10 @@ from units import getParmas, init_sphere, load_gamma, load_gamma_test
 
 def train_model():
     my_fun = origin_conv
-    save_global_prams = True
+    save_global_prams = False
     loaded_model = root + "/spherenet_bn_4dy.model"
     loaded_param = root + "/global.param"
-    ctx = mx.gpu(4)
+    ctx = mx.gpu(3)
     use_bn = True  # whether Batch normalization will be used in the net
     dropout = True  # whether gamma fliter will be random compressed
     # several paramers need update for different duty |
@@ -23,7 +23,7 @@ def train_model():
     data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
     batch_size = 192
     mnet = SphereNet20(my_fun=my_fun, use_bn=use_bn)
-    lr = 0.0001
+    lr = 0.0003
     stop_epoch = 300
 
     # initia the net and return paramers of bn -- gamma
@@ -65,13 +65,13 @@ def train_model():
                 out = mnet(batch)
                 loss_a = Aloss(out[0], out[1], label)
                 if use_bn:
-                    loss_nums = load_gamma_test(mnet)
+                    loss_nums = load_gamma_test(mnet, i + j)
                 else:
                     loss_nums = constrain_kernal_num()
                 loss = loss_a + loss_nums * alpha
             loss.backward()
             trainer.step(batch_size)
-            value2 = loss_nums.asscalar()
+            value2 = loss_nums.asscalar() * alpha
             value = loss_a.asscalar() / batch_size + value2
             sw.add_scalar(tag='Loss', value=value, global_step=i + j)
             sw.add_scalar(tag='K_Loss', value=value2, global_step=i + j)
