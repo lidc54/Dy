@@ -109,11 +109,10 @@ def new_constrain_conv(weight, name):
     tops = nd.topk(out, axis=-1, k=kept_in_kernel, ret_typ='mask')
     # let these in tops stay in activ & others be lost
     zeros = nd.zeros_like(out)
-    keep = (1.1 * (mu + c_rate * std) - out) * tops
+    keep = (1.10 * (mu + c_rate * std) - out) * tops
     keep = nd.where(keep > 0, keep, zeros)
     discard = (out - 0.9 * (mu + c_rate * std)) * (1 - tops)
     discard = nd.where(discard > 0, discard, zeros)
-
     # channels
     # keep_channels = nd.sum(keep != 0, axis=-1)
     # ones = nd.ones_like(keep_channels)
@@ -122,7 +121,16 @@ def new_constrain_conv(weight, name):
     # discard_channels = nd.where(discard_channels > 1, discard_channels, ones)
     # nd.sum(keep, axis=-1) / keep_channels + nd.sum(discard, axis=-1) / discard_channels
     # channel = nd.sum(keep != 0, axis=-1) + nd.sum(discard != 0, axis=-1)
-    loss = nd.sum(keep) + nd.sum(discard)
+    # loss = nd.sum(keep) + nd.sum(discard)
+    keep_all = (1.10 * (mu + c_rate * std) - out)
+    keep_all = nd.sum(nd.where(keep_all > 0, keep_all, zeros), axis=-1)
+    discard_all = (out - 0.9 * (mu + c_rate * std))
+    discard_all = nd.sum(nd.where(discard_all > 0, discard_all, zeros), axis=-1)
+
+    loss_common = nd.sum((keep + discard), axis=-1)
+    all_common = nd.where(loss_common < Is_kept_ratio * keep_all, loss_common, keep_all)
+    ac_none = nd.where(all_common < discard_all, all_common, discard_all)
+    loss = nd.sum(ac_none)
     tag_key = 'K_' + '_'.join(name.split('_')[1:])
     sw.add_scalar(tag=tag_key, value=loss.asscalar(), global_step=global_param.iter)
     # input*output;but output channels are almost same
