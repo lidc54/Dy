@@ -13,7 +13,7 @@ def train_model():
     save_global_prams = True
     loaded_model = root + "/spherenet_ft_Ns.model"
     loaded_param = root + "/global.param"
-    ctx = mx.gpu(2)
+    ctx = mx.gpu(4)
     # several paramers need update for different duty |
     # and notice params need to be updated
 
@@ -68,7 +68,7 @@ def train_model():
             value2 = loss_nums.asscalar()
             value = loss_a.asscalar() / batch_size + value2
             sw.add_scalar(tag='Loss', value=value, global_step=i + j)
-            sw.add_scalar(tag='K_Loss', value=value2, global_step=i + j)
+            sw.add_scalar(tag='Loss_inKernel', value=value2, global_step=i + j)
             if i % 200 == 0:
                 print('iter:%d,loss:%4.3f' % (i + j, value))
             # if isinstance(my_fun(1, 1), new_conv):
