@@ -24,7 +24,7 @@ def getParmas(mnet, mode='conv'):
 
 def init_sphere(mnet, loaded_model, ctx=mxnet.cpu()):
     for k, v in mnet.collect_params().items():
-        if 'bias' in k:
+        if 'bias' in k or 'prelu' in k:
             v.initialize(mxnet.initializer.Constant(0.0), ctx=ctx)
         elif 'batchnorm' in k:
             if 'gamma' in k or 'var' in k:
@@ -34,7 +34,7 @@ def init_sphere(mnet, loaded_model, ctx=mxnet.cpu()):
         else:
             v.initialize(mxnet.initializer.Xavier(magnitude=3), ctx=ctx)
     # load exist paramers
-    mnet.load_params(loaded_model, ctx=ctx, allow_missing=True)
+    mnet.load_params(loaded_model, ctx=ctx, allow_missing=True, ignore_extra=True)
     gammas = [k for k in mnet.collect_params().keys() if 'gamma' in k]
     return gammas
 
@@ -70,7 +70,7 @@ def load_gamma_test(mnet, iter):
         tag_key = '_'.join(key.split('_')[1:])
         sw.add_scalar(tag=tag_key, value=mu, global_step=iter)
         target = nd.zeros_like(gamma).as_in_context(gamma.context)
-        this_loss = loss_g(gamma / mu, target)
+        this_loss = loss_g(gamma, target)
         loss.append(nd.sum(this_loss / gamma.shape[0]))
 
     out = reduce(lambda x, y: x + y, loss)
