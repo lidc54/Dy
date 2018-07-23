@@ -7,7 +7,7 @@ power = 1
 c_rate = -0.9
 iter_stop = 450000
 
-root = 'log_bn_dy2'
+root = 'log_bn_dy3'
 sw = SummaryWriter(logdir=root, flush_secs=5)
 kept_in_kernel = 3
 
