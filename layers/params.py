@@ -11,7 +11,7 @@ nums_power = 1
 advanced_iter = 0.5  # defalut is 1:not to advanced
 zoom = 5.0
 
-root = 'log_4dy_Ns2'
+root = 'log_4dy_Ns4'
 sw = SummaryWriter(logdir=root, flush_secs=5)
 kept_in_kernel = 3
 
@@ -30,7 +30,10 @@ class mask_param(object):
         self.netMask = dict(zip(keys, nd.array([1] * len(keys), ctx=ctx)))
 
     def get_kept_ratio(self):
-        self.kept_ratio = self.Is_kept_ratio * (1 - math.pow(1 + gamma * self.iter, -power))
+        thr = 50000
+        if self.iter > thr:
+            self.kept_ratio = self.Is_kept_ratio * \
+                              (1 - math.pow(1 + 10 * gamma * (self.iter - thr), -power))
         return self.kept_ratio
 
     def load_param(self, mp, ctx=mx.cpu()):
