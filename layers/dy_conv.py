@@ -30,13 +30,21 @@ class new_conv(nn.Conv2D):
     def hybrid_forward(self, F, x, weight, bias=None):
         keys = self.params.keys()
         # self.assign_mask(keys)
-        for key in keys:
-            if 'weight' in key:
-                wmask = global_param.netMask[key] = \
-                    assign_mask(weight, global_param.netMask[key], key)
-            else:
-                bmask = global_param.netMask[key] = \
-                    assign_mask(bias, global_param.netMask[key])
+        key = [key for key in keys if 'weight' in key][0]
+
+        wmask = global_param.netMask[key] = \
+            assign_mask(weight, global_param.netMask[key], key)
+        # else:
+        #     bmask = global_param.netMask[key] = \
+        #         assign_mask(bias, global_param.netMask[key])
+        # bmask
+        bmask = wmask.copy()
+        for i in range(2): bmask = nd.sum(bmask, axis=-1)
+        # if global_param.iter % 1000 == 0:
+        #     tag_key = '_'.join(key.split('_')[1:]) + '_KerLossNums'
+        #     sw.add_histogram(tag=tag_key, values=bmask.reshape(-1).copy().sort(), global_step=global_param.iter)
+        bmask = nd.sum(bmask, axis=-1) > 0
+
         return super(new_conv, self).hybrid_forward(F, x, weight * wmask, bias * bmask)
 
 
@@ -132,10 +140,10 @@ def new_constrain_conv(weight, name):
     loss_common = keep + discard
     for i in range(2): loss_common = nd.sum(loss_common, axis=-1)
     kept_ratio = global_param.get_kept_ratio()
-    all_common = nd.where((kept_ratio * loss_common) < keep_all, loss_common, keep_all)
-    ac_none = nd.where(all_common < discard_all, all_common, discard_all)
+    all_common = nd.where((kept_ratio * loss_common) <= keep_all, loss_common, keep_all)
+    ac_none = nd.where(all_common <= discard_all, all_common, discard_all)
     loss = nd.sum(ac_none)
-    tag_key = 'K_' + '_'.join(name.split('_')[1:])
+    tag_key = '_'.join(name.split('_')[1:]) + '_KerLoss'
     sw.add_scalar(tag=tag_key, value=loss.asscalar(), global_step=global_param.iter)
     # input*output;but output channels are almost same
     return loss  # / channel
@@ -160,7 +168,7 @@ def constrain_conv(weight, v, name):
     out_c = nd.where(out1 < out2, out1, out2)
     # w = out_c / nd.sum(out_c)  # distribution the derivative
     constrain = nd.sum(out_c) / channel
-    tag_key = 'K_' + '_'.join(name.split('_')[1:])
+    tag_key = '_'.join(name.split('_')[1:]) + '_K'
     sw.add_scalar(tag=tag_key, value=constrain.asscalar(), global_step=global_param.iter)
     return constrain
 
