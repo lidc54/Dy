@@ -19,34 +19,37 @@ class Residual(nn.Block):
         if not same_shape:
             self.conv0 = my_fun(channels, in_channels=in_channels[0],
                                 kernel_size=3, padding=1, strides=2)
-            self.a0 = mPReLU(channels)
+            self.a00 = nn.PReLU()  # mPReLU(channels)
             if self.use_bn: self.b0 = nn.BatchNorm()
             in_channels[0] = channels
         self.conv1 = my_fun(channels, kernel_size=3,
                             in_channels=in_channels[0], padding=1)
-        self.a1 = mPReLU(channels)
+        self.a10 = nn.PReLU()  # mPReLU(channels)
         if self.use_bn: self.b1 = nn.BatchNorm()
         in_channels[0] = channels
         self.conv2 = my_fun(channels, kernel_size=3,
                             in_channels=in_channels[0], padding=1)
-        self.a2 = mPReLU(channels)
+        self.a20 = nn.PReLU()  # mPReLU(channels)
         if self.use_bn: self.b2 = nn.BatchNorm()
         in_channels[0] = channels
 
     def forward(self, x):
         # resnet-- place bN before conv
+        if not self.use_bn:
+            print "please checkout to 'master'"
+            raise NameError
         if not self.same_shape:
-            if self.use_bn: x = self.b0(x)
-            x = self.a0(self.conv0(x))
+            x = self.b0(x)
+            x = self.a00(x)
+            x = self.conv0(x)
 
-        if self.use_bn:
-            out = self.b1(x)
-            out = self.a1(self.conv1(out))
-        else:
-            out = self.a1(self.conv1(x))
+        out = self.b1(x)
+        out = self.a10(out)
+        out = self.conv1(out)
 
-        if self.use_bn: out = self.b2(out)
-        out = self.a2(self.conv2(out))
+        out = self.b2(out)
+        out = self.a20(out)
+        out = self.conv2(out)
         return out + x
 
 
