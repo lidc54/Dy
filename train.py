@@ -1,19 +1,20 @@
-from sphere_net import SphereNet20, AngleLoss, test_accur
+from layers.sphere_net import SphereNet20, AngleLoss, test_accur
 from mxnet import gluon, autograd
 import mxnet as mx
-import data, pickle, os
+import pickle, os
+from layers import data
 
 from layers.dy_conv import origin_conv, new_conv, constrain_kernal_num
-from layers.params import global_param, sw, root, alpha
+from layers.params import global_param, alpha, gls
 from units import getParmas, init_sphere
 
 
-def train_model():
+def train_model(gpu=None, root='', lr=0.0001):
     my_fun = new_conv
     save_global_prams = True
     loaded_model = root + "/spherenet_ft_Ns.model"
     loaded_param = root + "/global.param"
-    ctx = mx.gpu(4)
+    ctx = mx.gpu(gpu)
     # several paramers need update for different duty |
     # and notice params need to be updated
 
@@ -21,7 +22,7 @@ def train_model():
     data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
     batch_size = 192
     mnet = SphereNet20(my_fun=my_fun, use_bn=False)
-    lr = 0.000001
+    lr = lr
     stop_epoch = 300
 
     # initia the net and return paramers of bn -- gamma
@@ -94,5 +95,14 @@ def train_model():
 
 
 if __name__ == "__main__":
-    train_model()
+    import argparse
+
+    parse = argparse.ArgumentParser(description='paramers for compressed model trainning')
+    parse.add_argument('--gpu', type=int, default=1)
+    parse.add_argument('--root', type=str, default='log_4dy_Ns3')
+    parse.add_argument('--lr', type=float, default=0.0001)
+    args = parse.parse_args()
+    global sw
+    sw = gls.set_sw(args.root)
+    train_model(gpu=args.gpu, root=args.root, lr=args.lr)
     print('o')
