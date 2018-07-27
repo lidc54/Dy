@@ -1,12 +1,6 @@
-import mxnet.gluon.nn as nn
-import mxnet.gluon as gluon
-from mxnet.gluon import HybridBlock
-from mxnet import nd
-from mxnet.gluon.model_zoo import vision
 import mxnet as mx
 import pickle
-import math
-from sphere_net import SphereNet20
+from layers.sphere_net import SphereNet20
 
 
 @mx.init.register
