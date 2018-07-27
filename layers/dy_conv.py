@@ -80,7 +80,7 @@ def assign_mask(weight, mask, key=None):
     return mask
 
 
-def constrain_kernal_num(mnet):
+def constrain_kernal_num(mnet, ctx=mx.cpu()):
     # L1_loss = loss.L1Loss()
     exclude = ['alpha', 'bias', 'dense', '_muX', '_stdX']  # 'conv0_', 'conv1_', 'conv2_',
 
@@ -90,20 +90,23 @@ def constrain_kernal_num(mnet):
                 return True
         return False
 
-    num_kernel = []
-    for k, v in global_param.netMask.items():
-        if excluded(k):
-            continue
-        w = mnet.collect_params()[k].data()
-        # masked = w * v
-        num_kernel.append(new_constrain_conv(w, k))
+    r = global_param.get_ratio()
+    if r > 0:
+        num_kernel = []
+        for k, v in global_param.netMask.items():
+            if excluded(k):
+                continue
+            w = mnet.collect_params()[k].data()
+            # masked = w * v
+            num_kernel.append(new_constrain_conv(w, k))
 
-    # num_kernel = [constrain_conv(v, k) for k, v in global_param.netMask.items() if Not_excluded(k)]
-    loss_nums = reduce(lambda x, y: x + y, num_kernel) / len(num_kernel)
-    # Calculate the weight for mask
-    iter_ = global_param.iter
-    r = 1.0 - math.pow(1 + advanced_iter * gamma * iter_, -power)
-    return loss_nums * r * nums_power
+        # num_kernel = [constrain_conv(v, k) for k, v in global_param.netMask.items() if Not_excluded(k)]
+        loss_nums = reduce(lambda x, y: x + y, num_kernel) / len(num_kernel)
+        # Calculate the weight for mask
+        # iter_ = global_param.iter
+        # r = math.pow(1 + advanced_iter * gamma * iter_, -power)
+        return loss_nums * r * nums_power
+    return nd.zeros(1).as_in_context(ctx)
 
 
 # using top_k
@@ -143,8 +146,8 @@ def new_constrain_conv(weight, name):
     tag_key = '_'.join(name.split('_')[1:]) + '_KerLoss'
     gls.sw.add_scalar(tag=tag_key, value=loss.asscalar(), global_step=global_param.iter)
 
-    if global_param.iter > 150000: loss = loss * 2
-    if global_param.iter > 250000: loss = loss * 4
+    # if global_param.iter > 150000: loss = loss * 2
+    # if global_param.iter > 250000: loss = loss * 4
     # input*output;but output channels are almost same
     return loss  # / channel
 
