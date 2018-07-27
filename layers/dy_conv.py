@@ -6,10 +6,6 @@ import math, random
 from params import *
 
 
-# from mxboard import *
-# sw = SummaryWriter(logdir='/home/ldc/data/logs', flush_secs=5)
-
-
 class origin_conv(nn.Conv2D):
     def __init__(self, channels, kernel_size, **kwargs):
         super(origin_conv, self).__init__(channels, kernel_size, **kwargs)
@@ -42,7 +38,7 @@ class new_conv(nn.Conv2D):
         for i in range(2): bmask = nd.sum(bmask, axis=-1)
         # if global_param.iter % 1000 == 0:
         #     tag_key = '_'.join(key.split('_')[1:]) + '_KerLossNums'
-        #     sw.add_histogram(tag=tag_key, values=bmask.reshape(-1).copy().sort(), global_step=global_param.iter)
+        #     gls.sw.add_histogram(tag=tag_key, values=bmask.reshape(-1).copy().sort(), global_step=global_param.iter)
         bmask = nd.sum(bmask, axis=-1) > 0
 
         return super(new_conv, self).hybrid_forward(F, x, weight * wmask, bias * bmask)
@@ -72,8 +68,9 @@ def assign_mask(weight, mask, key=None):
         tag = [tag_key, tag_shape, str(all_count)]
         tag = '_'.join(tag)
         value = 1.0 * count.asscalar() / all_count
-        sw.add_scalar(tag=tag, value=value, global_step=global_param.iter)
-        sw.add_scalar(tag=tag + '_std', value=std, global_step=global_param.iter)
+        gls.sw.add_scalar(tag=tag, value=value, global_step=global_param.iter)
+        gls.sw.add_scalar(tag=tag + '_std', value=std, global_step=global_param.iter)
+        gls.sw.add_scalar(tag=tag + '_mu', value=mu, global_step=global_param.iter)
     # Calculate the weight mask and bias mask with probability
     r = random.random()
     if math.pow(1 + gamma * iter_, -power) > r and iter_ < iter_stop:
@@ -130,21 +127,24 @@ def new_constrain_conv(weight, name):
     # nd.sum(keep, axis=-1) / keep_channels + nd.sum(discard, axis=-1) / discard_channels
     # channel = nd.sum(keep != 0, axis=-1) + nd.sum(discard != 0, axis=-1)
     # loss = nd.sum(keep) + nd.sum(discard)
-    keep_all = (1.10 * (mu + c_rate * std) - out)
-    keep_all = nd.where(keep_all > 0, keep_all, zeros)
-    for i in range(2): keep_all = nd.sum(keep_all, axis=-1)
-    discard_all = (out - 0.9 * (mu + c_rate * std))
-    discard_all = nd.where(discard_all > 0, discard_all, zeros)
-    for i in range(2): discard_all = nd.sum(discard_all, axis=-1)
-
+    # keep_all = (1.10 * (mu + c_rate * std) - out)
+    # keep_all = nd.where(keep_all > 0, keep_all, zeros)
+    # for i in range(2): keep_all = nd.sum(keep_all, axis=-1)
+    # discard_all = (out - 0.9 * (mu + c_rate * std))
+    # discard_all = nd.where(discard_all > 0, discard_all, zeros)
+    # for i in range(2): discard_all = nd.sum(discard_all, axis=-1)
+    #
     loss_common = keep + discard
-    for i in range(2): loss_common = nd.sum(loss_common, axis=-1)
-    kept_ratio = global_param.get_kept_ratio()
-    all_common = nd.where((kept_ratio * loss_common) <= keep_all, loss_common, keep_all)
-    ac_none = nd.where(all_common <= discard_all, all_common, discard_all)
-    loss = nd.sum(ac_none)
+    # for i in range(2): loss_common = nd.sum(loss_common, axis=-1)
+    # kept_ratio = global_param.get_kept_ratio()
+    # all_common = nd.where((kept_ratio * loss_common) <= keep_all, loss_common, keep_all)
+    # ac_none = nd.where(all_common <= discard_all, all_common, discard_all)
+    loss = nd.sum(loss_common)  # nd.sum(ac_none)
     tag_key = '_'.join(name.split('_')[1:]) + '_KerLoss'
-    sw.add_scalar(tag=tag_key, value=loss.asscalar(), global_step=global_param.iter)
+    gls.sw.add_scalar(tag=tag_key, value=loss.asscalar(), global_step=global_param.iter)
+
+    if global_param.iter > 150000: loss = loss * 2
+    if global_param.iter > 250000: loss = loss * 4
     # input*output;but output channels are almost same
     return loss  # / channel
 
@@ -169,7 +169,7 @@ def constrain_conv(weight, v, name):
     # w = out_c / nd.sum(out_c)  # distribution the derivative
     constrain = nd.sum(out_c) / channel
     tag_key = '_'.join(name.split('_')[1:]) + '_K'
-    sw.add_scalar(tag=tag_key, value=constrain.asscalar(), global_step=global_param.iter)
+    gls.sw.add_scalar(tag=tag_key, value=constrain.asscalar(), global_step=global_param.iter)
     return constrain
 
 
@@ -187,35 +187,37 @@ class new_BN(nn.BatchNorm):
 
 
 if __name__ == "__main__":
-    a = nd.random.uniform(0, 1, shape=(1, 1, 5, 5))
-    lr = 0.1
-    net = nn.Sequential()
-
-    cov = new_conv(2, 3, in_channels=1, padding=1, strides=1)
-    with net.name_scope():
-        net.add(new_conv(2, 3, in_channels=1, padding=1, strides=1))
-        net.add(new_conv(1, 3, in_channels=2, strides=1, padding=1))
-
-    ctx = mx.cpu()
-    L = loss.L1Loss()
-    net.collect_params().initialize(init=initializer.Xavier(magnitude=3), ctx=ctx)
-    trainer = Trainer(net.collect_params(), 'sgd', {'learning_rate': lr, 'wd': 0.0})
-    key = net.collect_params().keys()
-    a = a.as_in_context(ctx)
-
-    global_param.set_param(key, ctx=ctx)
-
-    for i in range(15000):
-        with autograd.record():
-            global_param.iter = i
-            out = net[0](a)
-            out = net[1](out)
-            loss1 = L(out, a)
-            print(loss1.asscalar())
-        loss1.backward()
-        sw.add_scalar(tag='loss', value=loss1.asscalar(), global_step=i)
-        trainer.step(1)
-        if i != 0 and i % 1000 == 0:
-            lr *= 0.5
-            trainer.set_learning_rate(lr)
-    print('ok')
+    # a = nd.random.uniform(0, 1, shape=(1, 1, 5, 5))
+    # lr = 0.1
+    # net = nn.Sequential()
+    #
+    # cov = new_conv(2, 3, in_channels=1, padding=1, strides=1)
+    # with net.name_scope():
+    #     net.add(new_conv(2, 3, in_channels=1, padding=1, strides=1))
+    #     net.add(new_conv(1, 3, in_channels=2, strides=1, padding=1))
+    #
+    # ctx = mx.cpu()
+    # L = loss.L1Loss()
+    # net.collect_params().initialize(init=initializer.Xavier(magnitude=3), ctx=ctx)
+    # trainer = Trainer(net.collect_params(), 'sgd', {'learning_rate': lr, 'wd': 0.0})
+    # key = net.collect_params().keys()
+    # a = a.as_in_context(ctx)
+    #
+    # global_param.set_param(key, ctx=ctx)
+    #
+    # for i in range(15000):
+    #     with autograd.record():
+    #         global_param.iter = i
+    #         out = net[0](a)
+    #         out = net[1](out)
+    #         loss1 = L(out, a)
+    #         print(loss1.asscalar())
+    #     loss1.backward()
+    #     gls.sw.add_scalar(tag='loss', value=loss1.asscalar(), global_step=i)
+    #     trainer.step(1)
+    #     if i != 0 and i % 1000 == 0:
+    #         lr *= 0.5
+    #         trainer.set_learning_rate(lr)
+    # print('ok')
+    a = new_conv(50, kernel_size=3, padding=(1, 1))
+    print 'ok'
