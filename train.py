@@ -12,7 +12,7 @@ from units import getParmas, init_sphere
 def train_model(gpu=None, root='', lr=0.0001):
     my_fun = new_conv
     save_global_prams = True
-    loaded_model = root + "/spherenet_ft_Ns.model"
+    loaded_model = root + "/spherenet.model"
     loaded_param = root + "/global.param"
     ctx = mx.gpu(gpu)
     # several paramers need update for different duty |
@@ -21,7 +21,7 @@ def train_model(gpu=None, root='', lr=0.0001):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
     data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
     batch_size = 192
-    mnet = SphereNet20(my_fun=my_fun, use_bn=False)
+    mnet = SphereNet20(my_fun=my_fun, use_bn=True)
     lr = lr
     stop_epoch = 300
 
@@ -62,7 +62,7 @@ def train_model(gpu=None, root='', lr=0.0001):
             with autograd.record():
                 out = mnet(batch)
                 loss_a = Aloss(out[0], out[1], label)
-                loss_nums = constrain_kernal_num(mnet)
+                loss_nums = constrain_kernal_num(mnet, ctx=ctx)
                 loss = loss_a + loss_nums * alpha
             loss.backward()
             trainer.step(batch_size)
@@ -71,7 +71,7 @@ def train_model(gpu=None, root='', lr=0.0001):
             sw.add_scalar(tag='Loss', value=value, global_step=i + j)
             sw.add_scalar(tag='Loss_inKernel', value=value2, global_step=i + j)
             if i % 200 == 0:
-                print('iter:%d,loss:%4.3f' % (i + j, value))
+                print('iter:%d,loss:%4.5f' % (i + j, value))
             # if isinstance(my_fun(1, 1), new_conv):
             #     # get sparse of the dynamic
             #     s_dict = get_sparse_ratio()
@@ -98,8 +98,8 @@ if __name__ == "__main__":
     import argparse
 
     parse = argparse.ArgumentParser(description='paramers for compressed model trainning')
-    parse.add_argument('--gpu', type=int, default=1)
-    parse.add_argument('--root', type=str, default='log_4dy_Ns3')
+    parse.add_argument('--gpu', type=int, default=2)
+    parse.add_argument('--root', type=str, default='log_bn_dy')
     parse.add_argument('--lr', type=float, default=0.0001)
     args = parse.parse_args()
     global sw
