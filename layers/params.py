@@ -10,6 +10,12 @@ iter_stop = 4500000
 nums_power = 1
 advanced_iter = 0.5  # defalut is 1:not to advanced
 zoom = 5.0
+kept_in_kernel = 3
+alpha = 1  # harder punishment for loss
+HXW = 112 * 96
+
+
+# compressed_root = 'log_4dy_Ns3/transfed'
 
 
 class global_sw(object):
@@ -19,15 +25,10 @@ class global_sw(object):
 
     def set_sw(self, file):
         self.sw = SummaryWriter(logdir=file, flush_secs=5)
-gls=global_sw()
-
-kept_in_kernel = 3
-
-alpha = 1  # harder punishment for loss
-HXW = 112 * 96
+        return self.sw
 
 
-# compressed_root = 'log_4dy_Ns3/transfed'
+gls = global_sw()
 
 
 class mask_param(object):
@@ -37,16 +38,23 @@ class mask_param(object):
         self.iter = iter
         self.Is_kept_ratio = 0.9  # prefer the nums in kernel equal to kept_int_kernel
         self.kept_ratio = 0.0
+        self.thr = 20000
 
     def set_param(self, keys, ctx=mx.cpu()):
         self.netMask = dict(zip(keys, nd.array([1] * len(keys), ctx=ctx)))
 
     def get_kept_ratio(self):
-        thr = 50000
-        if self.iter > thr:
+        if self.iter > self.thr:
             self.kept_ratio = self.Is_kept_ratio * \
-                              (1 - math.pow(1 + 10 * gamma * (self.iter - thr), -power))
+                              (1 - math.pow(1 + 10 * gamma * (self.iter - self.thr), -power))
         return self.kept_ratio
+
+    def get_ratio(self):
+        # set ratio of importance of this item
+        if self.iter > self.thr:
+            ratio = math.pow(1 + 10 * gamma * (self.iter - self.thr), -power)
+            return ratio * 2
+        return 0
 
     def load_param(self, mp, ctx=mx.cpu()):
         self.iter = mp.iter
@@ -57,16 +65,6 @@ class mask_param(object):
 # mask and iter times for convlution of BatchNorm
 # so mask type has a scope of ['conv','bn']
 global_param = mask_param()
-
-
-def get_params():
-    import pickle
-    loaded_param = "../model_paramers/global.param"
-    with open(loaded_param)as f:
-        sv = pickle.load(f)
-
-    print('o')
-
 
 prefix = ['net.0.a0.alpha', 'net.3.a0.alpha', 'net.1.conv0.weight', 'net.7.conv1.weight',
           'net.1.conv1.bias', 'net.4.conv1.bias', 'net.0.conv0.bias', 'net.7.conv1.bias',
@@ -106,6 +104,15 @@ collect = ['spherenet200_conv0_weight', 'spherenet200_conv0_bias', 'spherenet200
            'spherenet200_conv18_weight', 'spherenet200_conv18_bias', 'spherenet200_mprelu18_alpha',
            'spherenet200_conv19_weight', 'spherenet200_conv19_bias', 'spherenet200_mprelu19_alpha',
            'spherenet200_dense0_weight', 'spherenet200_dense0_bias', 'spherenet200_anglelinear0_weight']
+
+
+def get_params():
+    import pickle
+    loaded_param = "../model_paramers/global.param"
+    with open(loaded_param)as f:
+        sv = pickle.load(f)
+    print('o')
+
 
 if __name__ == "__main__":
     get_params()
