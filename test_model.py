@@ -1,11 +1,10 @@
 import mxnet as mx
 import mxnet.ndarray as nd
 from mxnet.gluon.data.vision import transforms
-import data, sphere_net
-import glob, pickle, time
+from layers import sphere_net
+import time
 import numpy as np
 from PIL import Image
-import matplotlib.pyplot as plt
 from mxboard import SummaryWriter
 
 sw = SummaryWriter(logdir='log', flush_secs=5)
