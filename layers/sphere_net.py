@@ -1,18 +1,18 @@
 import mxnet.gluon.nn as nn
 import mxnet.gluon as gluon
 from mxnet import nd
-from mxnet.gluon.model_zoo import vision
 import mxnet as mx
 # import gradcam, pickle, dataset
-import math, pickle, data
-from layers.dy_conv import origin_conv, new_conv, new_BN
+import math
+from layers import data
+from layers.dy_conv import origin_conv
 
 
 # from trans_model_paramers import myinit
 
 # the base block for shpereface; notice the bn layer
 class Residual(nn.Block):
-    def __init__(self, channels, in_channels, same_shape=True, my_fun=nn.Conv2D, use_bn=True, **kwargs):
+    def __init__(self, channels, in_channels, same_shape=True, my_fun=nn.Conv2D, use_bn=False, **kwargs):
         super(Residual, self).__init__(**kwargs)
         self.same_shape = same_shape
         self.use_bn = use_bn
@@ -238,7 +238,7 @@ def check_gamma():
         print k, 'mean:%d, std:%d' % (mean.asscalar(), std.asscalar())
 
 
-def check_kernel_nums():
+def check_kernel_nums(loaded_param=None):
     # loaded_model = "log_4dy_Ns2/spherenet_ft_Ns.model"
     # mnet, _ = build_net(loaded_model, use_bn=False)
     #
@@ -248,7 +248,8 @@ def check_kernel_nums():
     #     print k, 'mean--- %.5f---,with the shape std---%.5f---with the shape ' % (
     #         mean.asscalar(), std.asscalar()), v.shape
     exclude = ['alpha', 'bias', 'dense', '_weight_']  # 'conv0_', 'conv1_', 'conv2_',
-    loaded_param = "log_4dy_Ns3/global.param"
+    if loaded_param is None:
+        loaded_param = "../sphere_dynamic/log_4dy_Ns3/global.param"
     import pickle, math
     with open(loaded_param)as f:
         dd = pickle.load(f)
@@ -286,9 +287,9 @@ def check_kernel_nums():
 
         # plot
         out = nd.sort(out.reshape(-1)).asnumpy()
-        x = range(1, 1 + len(out))
+        x = range(len(out))
         ax.plot(x, out, label=tag)
-        ax.set_yticks(range(9))
+        ax.set_yticks(range(1, 1 + 9))
 
         # histogram
         # out = out.reshape(-1).asnumpy()
@@ -303,4 +304,5 @@ def check_kernel_nums():
 if __name__ == "__main__":
     # mnet = init_model()
     # load_model()
-    check_kernel_nums()
+    loaded_param = "../sphere_dynamic/log_4dy_Ns3/global.param"
+    check_kernel_nums(loaded_param)
