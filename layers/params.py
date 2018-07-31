@@ -3,7 +3,7 @@ from mxnet import nd
 from mxboard import SummaryWriter
 import math
 
-gamma = 0.0000025  # about 10w to 1
+gamma = 0.0000125  # about 10w to 1
 power = 1
 c_rate = -0.9
 iter_stop = 4500000
@@ -36,7 +36,7 @@ class mask_param(object):
         super(mask_param, self).__init__()
         self.netMask = {}
         self.iter = iter
-        self.Is_kept_ratio = 0.9  # prefer the nums in kernel equal to kept_int_kernel
+        self.Is_kept_ratio = 2  # prefer the nums in kernel equal to kept_int_kernel
         self.kept_ratio = 0.0
         self.thr = 20000
 
@@ -49,12 +49,12 @@ class mask_param(object):
                               (1 - math.pow(1 + 10 * gamma * (self.iter - self.thr), -power))
         return self.kept_ratio
 
-    def get_ratio(self):
-        # set ratio of importance of this item
-        if self.iter > self.thr:
-            ratio = math.pow(1 + 10 * gamma * (self.iter - self.thr), -power)
-            return ratio * 2
-        return 0
+    # def get_ratio(self):
+    #     # set ratio of importance of this item
+    #     if self.iter > self.thr:
+    #         ratio = math.pow(1 + 10 * gamma * (self.iter - self.thr), -power)
+    #         return ratio * 2
+    #     return 0
 
     def load_param(self, mp, ctx=mx.cpu()):
         self.iter = mp.iter
