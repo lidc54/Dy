@@ -87,7 +87,7 @@ def train_compressed_model(gpu=None, compressed_root='log_4dy_Ns3/transfed', lr=
             value = loss.asscalar() / batch_size  # + value2
             sw.add_scalar(tag='Loss', value=value, global_step=i + j)
             # sw.add_scalar(tag='Loss_inKernel', value=value2, global_step=i + j)
-            if i % 1 == 0:
+            if i % 200 == 0:
                 print('iter:%d,loss:%4.3f' % (i + j, value))
             # if isinstance(my_fun(1, 1), new_conv):
             #     # get sparse of the dynamic
@@ -115,7 +115,7 @@ if __name__ == "__main__":
     import argparse
 
     parse = argparse.ArgumentParser(description='paramers for compressed model trainning')
-    parse.add_argument('--gpu', type=int, default=1)
+    parse.add_argument('--gpu', type=int, default=0)
     parse.add_argument('--root', type=str, default='log_4dy_Ns3/transfed')
     parse.add_argument('--lr', type=float, default=0.0001)
     args = parse.parse_args()
