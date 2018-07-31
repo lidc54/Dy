@@ -73,7 +73,7 @@ def assign_mask(weight, mask, key=None):
         gls.sw.add_scalar(tag=tag + '_mu', value=mu, global_step=global_param.iter)
     # Calculate the weight mask and bias mask with probability
     r = random.random()
-    if math.pow(1 + gamma * iter_, -power) > r and iter_ < iter_stop:
+    if math.pow(1 + 0.5 * gamma * iter_, -power) > r and iter_ < iter_stop:
         cond1 = (mask == 1) * (nd.abs(weight) < (0.9 * max(mu + c_rate * std, 0)))
         cond2 = (mask == 0) * (nd.abs(weight) > (1.1 * max(mu + c_rate * std, 0)))
         mask = mask - cond1 + cond2
@@ -82,7 +82,7 @@ def assign_mask(weight, mask, key=None):
 
 def constrain_kernal_num(mnet, ctx=mx.cpu()):
     # L1_loss = loss.L1Loss()
-    exclude = ['alpha', 'bias', 'dense', '_muX', '_stdX']  # 'conv0_', 'conv1_', 'conv2_',
+    exclude = ['alpha', 'bias', 'dense', '_muX', '_stdX', 'batchnorm']  # 'conv0_', 'conv1_', 'conv2_',
 
     def excluded(k):
         for i in exclude:
@@ -90,7 +90,7 @@ def constrain_kernal_num(mnet, ctx=mx.cpu()):
                 return True
         return False
 
-    r = global_param.get_ratio()
+    r = global_param.get_kept_ratio()
     if r > 0:
         num_kernel = []
         for k, v in global_param.netMask.items():
@@ -117,6 +117,7 @@ def new_constrain_conv(weight, name):
     tops = nd.topk(out, axis=-1, k=kept_in_kernel, ret_typ='mask')
     # let these in tops stay in activ & others be lost
     zeros = nd.zeros_like(out)
+    ones = nd.ones_like(out)
     keep = (1.10 * (mu + c_rate * std) - out) * tops
     keep = nd.where(keep > 0, keep, zeros)
     discard = (out - 0.9 * (mu + c_rate * std)) * (1 - tops)
@@ -138,11 +139,12 @@ def new_constrain_conv(weight, name):
     # for i in range(2): discard_all = nd.sum(discard_all, axis=-1)
     #
     loss_common = keep + discard
+    mask_blocker = nd.where(loss_common > 0, ones, zeros)
     # for i in range(2): loss_common = nd.sum(loss_common, axis=-1)
     # kept_ratio = global_param.get_kept_ratio()
     # all_common = nd.where((kept_ratio * loss_common) <= keep_all, loss_common, keep_all)
     # ac_none = nd.where(all_common <= discard_all, all_common, discard_all)
-    loss = nd.sum(loss_common)  # nd.sum(ac_none)
+    loss = nd.sum(loss_common * mask_blocker)  # nd.sum(ac_none)
     tag_key = '_'.join(name.split('_')[1:]) + '_KerLoss'
     gls.sw.add_scalar(tag=tag_key, value=loss.asscalar(), global_step=global_param.iter)
 
@@ -153,24 +155,34 @@ def new_constrain_conv(weight, name):
 
 
 # a convlution with constrain of limited paramers
-def constrain_conv(weight, v, name):
+# map the data in kernel [0.9(mu-std),1.1(mu-std)] to [-4,4]
+# but the first three number augmented with factor 2
+def constrain_conv(weight, name):  # v,
     out = nd.abs(weight.reshape(list(weight.shape[:2]) + [-1]))
-    mask = v.reshape(list(weight.shape[:2]) + [-1])
+    # mask = v.reshape(list(weight.shape[:2]) + [-1])
     mu, std = global_param.netMask[name + '_muX'], global_param.netMask[name + '_stdX']
-    size = list(out.shape)
-    # factor suppose as a shoulder
-    factor = nd.sort(out, axis=-1)[:, :, -3].reshape(size[:2] + [1]) - mu.asscalar()
-    bound = nd.ones_like(factor) * 0.5  # gamma has a great std now
-    factor = nd.where(factor > bound, factor, bound)
-    out = (out - mu) * zoom / factor
-    out = nd.sum(mask * nd.sigmoid(out), axis=-1)
-
-    channel = out.shape[1]
-    out1 = nd.abs(out - kept_in_kernel)  # close to kept_in_kernel,for example 3;
-    out2 = nd.abs(out)  # close t0 0
-    out_c = nd.where(out1 < out2, out1, out2)
-    # w = out_c / nd.sum(out_c)  # distribution the derivative
-    constrain = nd.sum(out_c) / channel
+    loc_zero, low_thr, high_thr, aug_factor = (mu + c_rate * std), 0.9, 1.1, 2.0
+    shoulder_sigmoid = 4
+    mid_thr = (low_thr + high_thr) / 2
+    tops = nd.topk(out, axis=-1, k=kept_in_kernel, ret_typ='mask')
+    # maps the data in kernel to new ones
+    out = out + (aug_factor - 1.0) * tops * out
+    factors = shoulder_sigmoid / ((high_thr - mid_thr) * mu)
+    out = (out - mid_thr * mu) * factors
+    # size = list(out.shape)
+    ## factor suppose as a shoulder
+    # factor = nd.sort(out, axis=-1)[:, :, -3].reshape(size[:2] + [1]) - mu.asscalar()
+    # bound = nd.ones_like(factor) * 0.5  # gamma has a great std now
+    # factor = nd.where(factor > bound, factor, bound)
+    # out = (out - mu) * zoom / factor
+    # out = nd.sum(mask * nd.sigmoid(out), axis=-1)
+    #
+    # channel = out.shape[1]
+    # out1 = nd.abs(out - kept_in_kernel)  # close to kept_in_kernel,for example 3;
+    # out2 = nd.abs(out)  # close t0 0
+    # out_c = nd.where(out1 < out2, out1, out2)
+    ## w = out_c / nd.sum(out_c)  # distribution the derivative
+    constrain = nd.sum(nd.sigmoid(out) - kept_in_kernel)  # / channel
     tag_key = '_'.join(name.split('_')[1:]) + '_K'
     gls.sw.add_scalar(tag=tag_key, value=constrain.asscalar(), global_step=global_param.iter)
     return constrain
