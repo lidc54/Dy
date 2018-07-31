@@ -6,8 +6,10 @@ import time
 import numpy as np
 from PIL import Image
 from mxboard import SummaryWriter
+from layers.params import global_param, gls
 
-sw = SummaryWriter(logdir='log', flush_secs=5)
+
+# sw = SummaryWriter(logdir='log', flush_secs=5)
 
 
 class MTransform(mx.gluon.nn.Block):
@@ -38,7 +40,7 @@ def cal_my_acc(test_files, target_files):
         # mTransform,
     ])
     model = sphere_net.SphereNet20()
-    model.load_params("spherenet_model", ctx=mx.gpu())
+    model.load_params("log_bn_dy/spherenet.model", ctx=mx.gpu())
     correct = 0
     total = 0
     target_emb = {}
@@ -145,6 +147,7 @@ def test_on_LFW(model, ctx=mx.gpu()):
         cosdistance = nd.sum(f1 * f2) / (f1.norm() * f2.norm() + 1e-5)
         sims.append('{}\t{}\t{}\t{}\n'.format(name1, name2, cosdistance.asscalar(), sameflag))
         sw.add_scalar(tag='score', value=cosdistance.asscalar(), global_step=i)
+        global_param.iter = i
 
     accuracy = []
     thd = []
@@ -162,12 +165,37 @@ def test_on_LFW(model, ctx=mx.gpu()):
     return np.mean(accuracy)
 
 
-if __name__ == "__main__":
-    model = sphere_net.SphereNet20()
+def prepare():
+    import os, pickle
+    from layers.dy_conv import new_conv
+    model = sphere_net.SphereNet20(my_fun=new_conv, use_bn=True)
     # gpus = [0,1]
     # ctx = [mx.gpu(ii) for ii in gpus]
     ctx = mx.gpu()
-    model.load_params("spherenet_model", ctx=ctx)
-    start = time.time()
-    test_on_LFW(model)
-    print time.time() - start
+    model.load_params("log_bn_dy/spherenet.model", ctx=ctx)
+    if os.path.exists('log_bn_dy/global.param'):
+        with open('log_bn_dy/global.param')as f:
+            sv = pickle.load(f)
+        global_param.load_param(sv, ctx=ctx)
+    else:
+        from units import getParmas
+        params = getParmas(model, mode='conv')
+        global_param.set_param(params.keys(), ctx=ctx)
+    global sw
+    sw = gls.set_sw('log/compressed')
+    return model
+
+
+if __name__ == "__main__":
+    import argparse
+
+    args = argparse.ArgumentParser()
+    args.add_argument('--file', type=str)
+    argments = args.parse_args()
+
+    # model = prepare()
+    # start = time.time()
+    # test_on_LFW(model)
+    # print time.time() - start
+    from layers import sphere_net
+    sphere_net.check_kernel_nums(argments.file)
