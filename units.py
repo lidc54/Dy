@@ -33,8 +33,8 @@ def init_sphere(mnet, loaded_model, ctx=mxnet.cpu()):
                 v.initialize(mxnet.initializer.Constant(0.0), ctx=ctx)
         else:
             v.initialize(mxnet.initializer.Xavier(magnitude=3), ctx=ctx)
-    # load exist paramers
-    mnet.load_params(loaded_model, ctx=ctx, allow_missing=True)
+    if os.path.exists(loaded_model):
+        mnet.load_params(loaded_model, ctx=ctx, allow_missing=True)
     gammas = {k: v for k, v in mnet.collect_params().items() if 'gamma' in k}
     return gammas
 
