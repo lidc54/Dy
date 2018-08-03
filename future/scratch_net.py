@@ -19,18 +19,25 @@ from layers.params import global_param
 class new_location_conv(nn.Conv2D):
     def __init__(self, channels, kernel_size, **kwargs):
         super(new_location_conv, self).__init__(channels, kernel_size, **kwargs)
-        self.rearray_idx = (np.arange(9) + 1) % 9
+        self.reidx = (np.arange(9) + 1) % 9
 
     def hybrid_forward(self, F, x, weight, bias=None):
         Cout, Cin, k1, k2 = weight.shape
-        temp_weight = nd.abs(weight).reshape((Cout, Cin, -1))
-        wmask = nd.array(nd.topk(temp_weight, k=3, ret_typ='mask').copy())
-        wmask = wmask.reshape(Cout, Cin, k1, k2)
-        name = self.name + '_weight'
-        global_param.netMask[name] = wmask
-        new_weight = temp_weight[:, :, self.rearray_idx].reshape(Cout, Cin, k1, k2)
-        ratio = 1 - 0.5 * global_param.get_kept_ratio()
-        new_weight = (weight + ratio * new_weight)
+        wmask = nd.topk(nd.abs(weight).reshape(Cout, Cin, -1), k=3, ret_typ='mask')
+        wmask = (wmask == 0) * 0.1 + wmask
+        wmask = wmask.reshape(Cout, Cin, k1, k2).as_in_context(x.context)
+
+        # ratio = 1 - 0.5 * global_param.get_kept_ratio()
+        # wmask = np.ones((Cout, Cin, k1 * k2))
+        # wmask[:, :, self.mask] = ratio
+        # name = self.name + '_weight'
+        # global_param.netMask[name] = wmask
+
+        temp_weight = weight.reshape((Cout, Cin, -1))
+        new_weight = temp_weight[:, :, self.reidx].reshape(Cout, Cin, k1, k2)
+        new_weight = (weight + nd.sign(weight) * nd.abs(new_weight))
+
+        # ratio=0.2 if ratio<0.2 else ratio
         return super(new_location_conv, self).hybrid_forward(F, x, new_weight * wmask, bias)
 
 
