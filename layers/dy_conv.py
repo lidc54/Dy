@@ -73,10 +73,18 @@ def assign_mask(weight, mask, key=None):
         gls.sw.add_scalar(tag=tag + '_mu', value=mu, global_step=global_param.iter)
     # Calculate the weight mask and bias mask with probability
     r = random.random()
-    if math.pow(1 + 0.5 * gamma * iter_, -power) > r and iter_ < iter_stop:
+    condition = math.pow(1 + 0.5 * gamma * iter_, -power)
+    if condition > r and iter_ < iter_stop:
         cond1 = (mask == 1) * (nd.abs(weight) < (0.9 * max(mu + c_rate * std, 0)))
         cond2 = (mask == 0) * (nd.abs(weight) > (1.1 * max(mu + c_rate * std, 0)))
         mask = mask - cond1 + cond2
+
+    if condition < global_param.threshold_stop_mask:
+        out = nd.abs(weight.reshape(list(weight.shape[:2]) + [-1]))
+        # channel = out.shape[1]
+        # mu, std = global_param.netMask[name + '_muX'], global_param.netMask[name + '_stdX']
+        out = nd.topk(out, axis=-1, k=kept_in_kernel, ret_typ='mask')
+        mask = out.reshape(weight.shape)
     return mask
 
 
