@@ -98,11 +98,13 @@ if __name__ == "__main__":
     import argparse
 
     parse = argparse.ArgumentParser(description='paramers for compressed model trainning')
-    parse.add_argument('--gpu', type=int, default=2)
+    parse.add_argument('--gpu', type=int, default=0)
     parse.add_argument('--root', type=str, default='log_bn_dy')
     parse.add_argument('--lr', type=float, default=0.0001)
+    parse.add_argument('--stopat', type=float, default=0.0)
     args = parse.parse_args()
     global sw
     sw = gls.set_sw(args.root)
+    global_param.threshold_stop_mask=args.stopat
     train_model(gpu=args.gpu, root=args.root, lr=args.lr)
     print('o')
