@@ -190,7 +190,8 @@ if __name__ == "__main__":
     import argparse
 
     args = argparse.ArgumentParser()
-    args.add_argument('--file', type=str)
+    args.add_argument('--mask', type=str,default='log_bn_dy/global.param')
+    args.add_argument('--model', type=str, default='log_bn_dy/spherenet.model')
     argments = args.parse_args()
 
     # model = prepare()
@@ -198,4 +199,5 @@ if __name__ == "__main__":
     # test_on_LFW(model)
     # print time.time() - start
     from layers import sphere_net
-    sphere_net.check_kernel_nums(argments.file)
+
+    sphere_net.check_kernel_nums(loaded_param=argments.mask, loaded_model=argments.model)
