@@ -238,7 +238,8 @@ def check_gamma():
         print k, 'mean:%d, std:%d' % (mean.asscalar(), std.asscalar())
 
 
-def check_kernel_nums(loaded_param=None):
+def check_kernel_nums(loaded_param=None, loaded_model=None):
+    from layers.params import c_rate
     # loaded_model = "log_4dy_Ns2/spherenet_ft_Ns.model"
     # mnet, _ = build_net(loaded_model, use_bn=False)
     #
@@ -259,6 +260,7 @@ def check_kernel_nums(loaded_param=None):
     cout, cols, idx = 0.0, 5, 0
     next = False
     for k in pramer.keys():
+        pramer[k] = pramer[k].as_in_context(mx.cpu())
         for x in exclude:
             if x in k:
                 next = True
@@ -269,9 +271,24 @@ def check_kernel_nums(loaded_param=None):
         if 'weight' in k:
             cout += 1
     rows = int(math.ceil(cout / cols))
-
+    keyorder = pramer.keys()
+    lm = False
+    if not loaded_model is None:
+        from compress_model.analysis_model import rearrange
+        # from layers. import SphereNet20
+        from dy_conv import new_conv
+        lm = True
+        mnet = SphereNet20(my_fun=new_conv, use_bn=True)
+        keyorder = mnet.collect_params().keys()
+        loaded = nd.load(loaded_model)
+        re_n_k = rearrange(needfix_key=loaded.keys(), target_key=keyorder, show=False)
     next = False
-    for k, v in pramer.items():
+    for j, k in enumerate(keyorder):
+        try:
+            v = pramer[k]
+        except Exception, e:
+            print e
+            continue
         for x in exclude:
             if x in k:
                 next = True
@@ -282,20 +299,37 @@ def check_kernel_nums(loaded_param=None):
         tag = k.split('_')[1]
         idx += 1
         out = v
-        for i in range(2): out = nd.sum(out, axis=-1)
+        if lm:
+            mu, std = pramer[k + '_muX'], pramer[k + '_stdX']
+            thr = (mu + c_rate * std)
+            # todo:mask
+            out2 = nd.abs(loaded[re_n_k[j]]) / thr - 1
+            temp = nd.zeros_like(out2)
+            out2 = nd.where(nd.abs(out2) > 0.1, temp, out2)
+
+        for i in range(2):
+            if lm: out2 = nd.sum(out2, axis=-1)
+            out = nd.sum(out, axis=-1)
         ax = plt.subplot(rows, cols, idx)
 
         # plot
         out = nd.sort(out.reshape(-1)).asnumpy()
         x = range(len(out))
-        ax.plot(x, out, label=tag)
+        l1, = ax.plot(x, out, 'r', label=tag)
+        if lm:
+            out2 = out2 * 10 + 5
+            out2 = nd.sort(out2.reshape(-1)).asnumpy()
+            l2, = ax.plot(x, out2, 'b', label= 'X20plus5')
         ax.set_yticks(range(1, 1 + 9))
+        if lm:
+            ax.legend([l1, l2],  loc='best')
+        else:
+            ax.legend(loc='best')
 
         # histogram
         # out = out.reshape(-1).asnumpy()
         # ax.hist(out, bins=27, label=tag)
         # ax.set_xticks(range(9))
-        ax.legend(loc='best')
     plt.show()
 
     print('o')
