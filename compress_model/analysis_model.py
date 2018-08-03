@@ -102,7 +102,7 @@ def rearrange(target_key=None, needfix_key=None, show=True):
 
     def mykey(c):
         r = c.split('.')
-        maps = {'weight': 1, 'bias': 2, 'alpha': 3}
+        maps = {'weight': 1, 'bias': 2, 'alpha': 3, 'gamma': 4, 'beta': 5, 'running_mean': 6, 'running_var': 7}
         if len(r) == 2:
             key = 2000
         elif len(r) == 3:
