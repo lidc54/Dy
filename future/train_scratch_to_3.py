@@ -107,7 +107,7 @@ if __name__ == "__main__":
 
     parse = argparse.ArgumentParser(description='paramers for compressed model trainning')
     parse.add_argument('--gpu', type=int, default=0)
-    parse.add_argument('--root', type=str, default='../log/future')
+    parse.add_argument('--root', type=str, default='log/future')
     parse.add_argument('--lr', type=float, default=0.0001)
     args = parse.parse_args()
     global sw
