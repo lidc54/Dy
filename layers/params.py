@@ -40,7 +40,7 @@ class mask_param(object):
         self.Is_kept_ratio = 2  # prefer the nums in kernel equal to kept_int_kernel
         self.kept_ratio = 0.0
         self.thr = 20000
-        self.threshold_stop_mask = 0.0  # thres lt this will stop update mask and the latter equals to top 3(kept_in_kernel)
+        self.threshold_stop_mask = 0.0  # [0.0, 1.0] thres lt this will stop update mask and the latter equals to top 3(kept_in_kernel)
         self.iters_constain_BN = 100000
 
     def set_param(self, keys, ctx=mx.cpu()):
