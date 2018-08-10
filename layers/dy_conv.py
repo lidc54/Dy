@@ -1,6 +1,6 @@
 from mxnet.gluon import nn
-from mxnet import nd, initializer, autograd
-from mxnet.gluon import loss, Trainer
+# from mxnet import nd, initializer, autograd
+# from mxnet.gluon import loss, Trainer
 import mxnet as mx
 import math, random
 from params import *
@@ -207,6 +207,27 @@ class new_BN(nn.BatchNorm):
         mask = global_param.netMask[key] = \
             assign_mask(gamma, global_param.netMask[key], key)
         return super(new_BN, self).hybrid_forward(F, x, gamma * mask, beta, running_mean, running_var)
+
+
+def constrain_gamma(mnet, iter, ctx=mx.cpu()):
+    if iter < global_param.iters_constain_BN:
+        return nd.zeros(1).as_in_context(ctx)
+    # load gamma in the net to update mask
+    loss_g = mx.gluon.loss.L1Loss()
+    loss = []
+    for key, value in mnet.collect_params().items():
+        if not 'gamma' in key:
+            continue
+        gamma = nd.abs(value.data())
+        mu = nd.mean(gamma).asscalar()
+        tag_key = '_'.join(key.split('_')[1:]) + '_Gamma'
+        gls.sw.add_scalar(tag=tag_key, value=mu, global_step=iter)
+        target = nd.zeros_like(gamma).as_in_context(ctx)
+        this_loss = loss_g(gamma, target)
+        loss.append(nd.sum(this_loss))
+
+    out = reduce(lambda x, y: x + y, loss)
+    return out / len(loss)
 
 
 if __name__ == "__main__":
