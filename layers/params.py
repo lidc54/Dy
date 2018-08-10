@@ -11,7 +11,8 @@ nums_power = 1
 advanced_iter = 0.5  # defalut is 1:not to advanced
 zoom = 5.0
 kept_in_kernel = 3
-alpha = 1  # harder punishment for loss
+alpha = 1  # harder punishment for constrain of nums in kernel
+beta = 1  # harder punishment for constrain of BN
 HXW = 112 * 96
 
 
@@ -40,6 +41,7 @@ class mask_param(object):
         self.kept_ratio = 0.0
         self.thr = 20000
         self.threshold_stop_mask = 0.0  # thres lt this will stop update mask and the latter equals to top 3(kept_in_kernel)
+        self.iters_constain_BN = 100000
 
     def set_param(self, keys, ctx=mx.cpu()):
         self.netMask = dict(zip(keys, nd.array([1] * len(keys), ctx=ctx)))
@@ -50,12 +52,13 @@ class mask_param(object):
                               (1 - math.pow(1 + 10 * gamma * (self.iter - self.thr), -power))
         return self.kept_ratio
 
-    # def get_ratio(self):
-    #     # set ratio of importance of this item
-    #     if self.iter > self.thr:
-    #         ratio = math.pow(1 + 10 * gamma * (self.iter - self.thr), -power)
-    #         return ratio * 2
-    #     return 0
+    def set_thr(self, thr):
+        # set threshold which indicate when to start constrain nums in kernel
+        self.thr = thr
+
+    def set_thr_bn(self, iters):
+        # set threshold which indicate when to start constrain nums in kernel
+        self.iters_constain_BN = iters
 
     def load_param(self, mp, ctx=mx.cpu()):
         self.iter = mp.iter
