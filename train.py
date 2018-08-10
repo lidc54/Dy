@@ -4,12 +4,12 @@ import mxnet as mx
 import pickle, os
 from layers import data
 
-from layers.dy_conv import origin_conv, new_conv, constrain_kernal_num
-from layers.params import global_param, alpha, gls
+from layers.dy_conv import origin_conv, new_conv, constrain_kernal_num, constrain_gamma
+from layers.params import global_param, alpha, beta, gls
 from units import getParmas, init_sphere
 
 
-def train_model(gpu=None, root='', lr=0.0001):
+def train_model(gpu=None, root='', lr=0.0001, data_fold=None, batch_size=None):
     my_fun = new_conv
     save_global_prams = True
     loaded_model = root + "/spherenet.model"
@@ -19,10 +19,10 @@ def train_model(gpu=None, root='', lr=0.0001):
     # and notice params need to be updated
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-    data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
-    batch_size = 192
+    # data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
+    # batch_size = 192
     mnet = SphereNet20(my_fun=my_fun, use_bn=True)
-    lr = lr
+    # lr = lr
     stop_epoch = 300
 
     # initia the net and return paramers of bn -- gamma
@@ -63,7 +63,8 @@ def train_model(gpu=None, root='', lr=0.0001):
                 out = mnet(batch)
                 loss_a = Aloss(out[0], out[1], label)
                 loss_nums = constrain_kernal_num(mnet, ctx=ctx)
-                loss = loss_a + loss_nums * alpha
+                loss_bn = constrain_gamma(mnet, i + j, ctx)
+                loss = loss_a + loss_nums * alpha + loss_bn * beta
             loss.backward()
             trainer.step(batch_size)
             value2 = loss_nums.asscalar()
@@ -102,9 +103,18 @@ if __name__ == "__main__":
     parse.add_argument('--root', type=str, default='log_bn_dy')
     parse.add_argument('--lr', type=float, default=0.0001)
     parse.add_argument('--stopat', type=float, default=0.0)
+    parse.add_argument('--data_fold', type=str, default="/home1/CASIA-WebFace/aligned_Webface-112X96/")
+    parse.add_argument('--batch_size', type=int, default=192)
+    parse.add_argument('--thres_constrain', type=int, default=20000)
+    parse.add_argument('--thres_constrain_BN', type=int, default=100000)
     args = parse.parse_args()
     global sw
     sw = gls.set_sw(args.root)
-    global_param.threshold_stop_mask=args.stopat
-    train_model(gpu=args.gpu, root=args.root, lr=args.lr)
+
+    global_param.threshold_stop_mask = args.stopat
+    global_param.set_thr(args.thres_constrain)
+    global_param.set_thr_bn(args.thres_constrain_BN)
+
+    train_model(gpu=args.gpu, root=args.root, lr=args.lr,
+                data_fold=args.data_fold, batch_size=args.batch_size)
     print('o')
