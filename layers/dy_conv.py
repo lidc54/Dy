@@ -161,7 +161,35 @@ def new_constrain_conv(weight, name):
     # input*output;but output channels are almost same
     return loss  # / channel
 
+# using top_k of a group
+def new_group_constrain_conv(weight, name):
+    out = nd.abs(weight.reshape(list(weight.shape[:2]) + [-1]))
+    channel = out.shape[1]
+    mu, std = global_param.netMask[name + '_muX'], global_param.netMask[name + '_stdX']
+    group_out=nd.sum(out,axis=1,keepdims=True)
+    tops = nd.topk(group_out, axis=-1, k=kept_in_kernel, ret_typ='mask')
+    # let these in tops stay in activ & others be lost
+    zeros = nd.zeros_like(out)
+    ones = nd.ones_like(out)
+    keep = (1.10 * (mu + c_rate * std) - out) * tops
+    keep = nd.where(keep > 0, keep, zeros)
+    discard = (out - 0.9 * (mu + c_rate * std)) * (1 - tops)
+    discard = nd.where(discard > 0, discard, zeros)
 
+    loss_common = keep + discard
+    mask_blocker = nd.where(loss_common > 0, ones, zeros)
+    # for i in range(2): loss_common = nd.sum(loss_common, axis=-1)
+    # kept_ratio = global_param.get_kept_ratio()
+    # all_common = nd.where((kept_ratio * loss_common) <= keep_all, loss_common, keep_all)
+    # ac_none = nd.where(all_common <= discard_all, all_common, discard_all)
+    loss = nd.sum(loss_common * mask_blocker)  # nd.sum(ac_none)
+    tag_key = '_'.join(name.split('_')[1:]) + '_KerLoss'
+    gls.sw.add_scalar(tag=tag_key, value=loss.asscalar(), global_step=global_param.iter)
+
+    # if global_param.iter > 150000: loss = loss * 2
+    # if global_param.iter > 250000: loss = loss * 4
+    # input*output;but output channels are almost same
+    return loss  # / channel
 # a convlution with constrain of limited paramers
 # map the data in kernel [0.9(mu-std),1.1(mu-std)] to [-4,4]
 # but the first three number augmented with factor 2
@@ -210,6 +238,7 @@ class new_BN(nn.BatchNorm):
 
 
 def constrain_gamma(mnet, iter, ctx=mx.cpu()):
+    """will be ignore before a number"""
     if iter < global_param.iters_constain_BN:
         return nd.zeros(1).as_in_context(ctx)
     # load gamma in the net to update mask
