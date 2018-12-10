@@ -1,7 +1,7 @@
 from layers.sphere_net import SphereNet20, AngleLoss, test_accur
 from mxnet import gluon, autograd
 import mxnet as mx
-import pickle, os
+import os, pickle
 from layers import data
 
 from layers.dy_conv import origin_conv, new_conv, constrain_kernal_num, constrain_gamma
@@ -9,7 +9,7 @@ from layers.params import global_param, alpha, beta, gls
 from units import getParmas, init_sphere
 
 
-def train_model(gpu=None, root='', lr=0.0001, data_fold=None, batch_size=None):
+def train_model(gpu=None, root='', lr=0.0001, data_fold=None, batch_size=None, use_bn=True):
     my_fun = new_conv
     save_global_prams = True
     loaded_model = root + "/spherenet.model"
@@ -21,7 +21,7 @@ def train_model(gpu=None, root='', lr=0.0001, data_fold=None, batch_size=None):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
     # data_fold = "/home1/CASIA-WebFace/aligned_Webface-112X96/"
     # batch_size = 192
-    mnet = SphereNet20(my_fun=my_fun, use_bn=True)
+    mnet = SphereNet20(my_fun=my_fun, use_bn=use_bn)
     # lr = lr
     stop_epoch = 300
 
@@ -44,7 +44,7 @@ def train_model(gpu=None, root='', lr=0.0001, data_fold=None, batch_size=None):
     if os.path.exists(loaded_param):
         with open(loaded_param)as f:
             sv = pickle.load(f)
-        global_param.load_param(sv, ctx=ctx)
+        global_param.load_param(sv)
     else:
         if isinstance(my_fun(1, 1), new_conv):
             global_param.set_param(params.keys(), ctx=ctx)
@@ -62,9 +62,11 @@ def train_model(gpu=None, root='', lr=0.0001, data_fold=None, batch_size=None):
             with autograd.record():
                 out = mnet(batch)
                 loss_a = Aloss(out[0], out[1], label)
-                loss_nums = constrain_kernal_num(mnet, ctx=ctx)
-                loss_bn = constrain_gamma(mnet, i + j, ctx)
-                loss = loss_a + loss_nums * alpha + loss_bn * beta
+                loss_nums = constrain_kernal_num(mnet.collect_params(), ctx=ctx) * alpha
+                if use_bn:
+                    loss_bn = constrain_gamma(mnet, i + j, ctx) * beta
+                    loss_nums = loss_nums + loss_bn
+                loss = loss_a + loss_nums
             loss.backward()
             trainer.step(batch_size)
             value2 = loss_nums.asscalar()
@@ -88,25 +90,33 @@ def train_model(gpu=None, root='', lr=0.0001, data_fold=None, batch_size=None):
             sw.add_scalar(tag='RocDisc', value=discroc.asscalar(), global_step=i + j)
             sw.add_scalar(tag='RocCont', value=controc.asscalar(), global_step=i + j)
         # save model
-        mnet.save_params(loaded_model)
+        mnet.save_parameters(loaded_model)
         if save_global_prams:  # isinstance(my_fun(1, 1), new_conv):
             # save the params of mask
-            with open(loaded_param, 'w')as f:
-                pickle.dump(global_param, f)
+            global_param.save_param(loaded_param)
 
 
 if __name__ == "__main__":
     import argparse
 
     parse = argparse.ArgumentParser(description='paramers for compressed model trainning')
-    parse.add_argument('--gpu', type=int, default=0)
-    parse.add_argument('--root', type=str, default='log_bn_dy')
+    parse.add_argument('--gpu', type=int, default=0,
+                       help='default=0')
+    parse.add_argument('--root', type=str, default='log/5log_bn_dy',
+                       help='notice there has no "/" after it')
     parse.add_argument('--lr', type=float, default=0.0001)
-    parse.add_argument('--stopat', type=float, default=0.0)
+    parse.add_argument('--stopat', type=float, default=0.0,
+                       help='force using constrain to top k when probablity reduce to this point')
+    parse.add_argument('--use_bn', type=bool, default=False,
+                       help="whether use BN or not")
+    parse.add_argument('--use_group_constrain', type=bool, default=False,
+                       help="used for selcet group constrain or not in constrain_kernal_num")
     parse.add_argument('--data_fold', type=str, default="/home1/CASIA-WebFace/aligned_Webface-112X96/")
     parse.add_argument('--batch_size', type=int, default=192)
-    parse.add_argument('--thres_constrain', type=int, default=20000)
-    parse.add_argument('--thres_constrain_BN', type=int, default=100000)
+    parse.add_argument('--thres_constrain', type=int, default=20000,
+                       help='when to use constrain top k')
+    parse.add_argument('--thres_constrain_BN', type=int, default=100000,
+                       help='when to constrain Batch Normal')
     args = parse.parse_args()
     global sw
     sw = gls.set_sw(args.root)
@@ -116,5 +126,6 @@ if __name__ == "__main__":
     global_param.set_thr_bn(args.thres_constrain_BN)
 
     train_model(gpu=args.gpu, root=args.root, lr=args.lr,
-                data_fold=args.data_fold, batch_size=args.batch_size)
+                data_fold=args.data_fold,
+                batch_size=args.batch_size, use_bn=args.use_bn)
     print('o')

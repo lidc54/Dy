@@ -238,7 +238,7 @@ def check_gamma():
         print k, 'mean:%d, std:%d' % (mean.asscalar(), std.asscalar())
 
 
-def check_kernel_nums(loaded_param=None, loaded_model=None):
+def check_kernel_nums(mnet, loaded_param=None, loaded_model=None):
     from layers.params import c_rate
     # loaded_model = "log_4dy_Ns2/spherenet_ft_Ns.model"
     # mnet, _ = build_net(loaded_model, use_bn=False)
@@ -255,9 +255,9 @@ def check_kernel_nums(loaded_param=None, loaded_model=None):
     with open(loaded_param)as f:
         dd = pickle.load(f)
     pramer = dd.netMask
-    print 'iter:', dd.iter
+    # print 'iter:', dd.iter
     import matplotlib.pyplot as plt
-    cout, cols, idx = 0.0, 5, 0
+    cout, cols, idx = 0.0, 2, 0
     next = False
     for k in pramer.keys():
         pramer[k] = pramer[k].as_in_context(mx.cpu())
@@ -271,14 +271,15 @@ def check_kernel_nums(loaded_param=None, loaded_model=None):
         if 'weight' in k:
             cout += 1
     rows = int(math.ceil(cout / cols))
+    print 'total:', cout, 'rows:', rows, 'cols:', cols
     keyorder = pramer.keys()
     lm = False
     if not loaded_model is None:
         from compress_model.analysis_model import rearrange
         # from layers. import SphereNet20
-        from dy_conv import new_conv
+        from dy_conv import new_conv, origin_conv
         lm = True
-        mnet = SphereNet20(my_fun=new_conv, use_bn=True)
+        # mnet = SphereNet20(my_fun=origin_conv, use_bn=False)
         keyorder = mnet.collect_params().keys()
         loaded = nd.load(loaded_model)
         re_n_k = rearrange(needfix_key=loaded.keys(), target_key=keyorder, show=False)
@@ -298,9 +299,14 @@ def check_kernel_nums(loaded_param=None, loaded_model=None):
             continue
         tag = k.split('_')[1]
         idx += 1
+        _, _, k, _ = v.shape
         out = v
         if lm:
-            mu, std = pramer[k + '_muX'], pramer[k + '_stdX']
+            try:
+                mu, std = pramer[k + '_muX'], pramer[k + '_stdX']
+            except Exception, e:
+                mu, std = mean_std(v)
+
             thr = (mu + c_rate * std)
             # todo:mask
             out2 = nd.abs(loaded[re_n_k[j]]) / thr - 1
@@ -312,17 +318,23 @@ def check_kernel_nums(loaded_param=None, loaded_model=None):
             out = nd.sum(out, axis=-1)
         ax = plt.subplot(rows, cols, idx)
 
+        # ratio of 1/3 [numbers in kernel]
+        ratio1 = nd.sum(nd.where(out >= 2, nd.where(out <= 4, nd.ones_like(out),
+                                                    nd.zeros_like(out)), nd.zeros_like(out)))
+        ratio = (ratio1 / nd.sum(nd.ones_like(out))).asscalar()
+
         # plot
         out = nd.sort(out.reshape(-1)).asnumpy()
         x = range(len(out))
-        l1, = ax.plot(x, out, 'r', label=tag)
+        l1, = ax.plot(x, out, 'r', label=tag + '_' + repr(ratio))
+        print 'len kenels', tag, len(out)
         if lm:
-            out2 = out2 * 10 + 5
+            out2 = out2 * 10 + 15
             out2 = nd.sort(out2.reshape(-1)).asnumpy()
-            l2, = ax.plot(x, out2, 'b', label= 'X20plus5')
-        ax.set_yticks(range(1, 1 + 9))
+            l2, = ax.plot(x, out2, 'b', label='X20plus5')
+        ax.set_yticks(range(1, 1 + k * k))
         if lm:
-            ax.legend([l1, l2],  loc='best')
+            ax.legend([l1, l2], loc='best')
         else:
             ax.legend(loc='best')
 
@@ -330,6 +342,7 @@ def check_kernel_nums(loaded_param=None, loaded_model=None):
         # out = out.reshape(-1).asnumpy()
         # ax.hist(out, bins=27, label=tag)
         # ax.set_xticks(range(9))
+    plt.savefig('plotDis.jpg')
     plt.show()
 
     print('o')

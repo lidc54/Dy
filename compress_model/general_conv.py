@@ -236,37 +236,104 @@ def load_s(net, target_net, ctx=mx.cpu()):
         print ''
 
 
-def test2():
-    cov = special_conv(1, kernel_size=(3, 1),
-                       in_channels=3, padding=1, strides=2)
-    Oconv = nn.Conv2D(1, kernel_size=(3, 1),
-                      in_channels=3, padding=1, strides=2)
-    init_s(cov)
-    load_s(Oconv, cov)
+def test2(ctx):
+    # ipt, opt, k1, k2
+    cov = special_conv(ipt, kernel_size=(3, 1),
+                       in_channels=opt, padding=1, strides=2)
+    Oconv = nn.Conv2D(ipt, kernel_size=(1, 3),
+                      in_channels=opt, padding=1, strides=2)
+    init_s(cov, ctx)
+    load_s(Oconv, cov, ctx)
+    build_mask(cov, shuffle=True)
+    import time
+    t1 = time.time()
     Oout = Oconv(img)
+    t2 = time.time()
     out = cov(img)
-    print 'weight:', nd.sum(Oconv.weight.data() - cov.weight.data()),
-    print 'result:', nd.sum(Oout - out),
+    t3 = time.time()
+    print t2 - t1, ' and ', t3 - t2
+    # print 'weight:', nd.sum(Oconv.weight.data() - cov.weight.data()),
+    # print 'result:', nd.sum(Oout - out),
     print ''
 
 
-if __name__ == "__main__":
+def build_mask(net, shuffle=False):
+    global masks
+    import numpy as np
+    masks = {}
+    if shuffle:
+        for k, v in net.collect_params().items():
+            vd = v.data()
+            if len(vd.shape) > 1:
+                o, i, k1, k2 = vd.shape
+                sz = (o, i, k1 * k2)
+            else:
+                sz = vd.shape
+            masks[k] = np.random.randint(0, 8, size=sz)
+    else:
+        for k, v in net.collect_params().items():
+            vd = v.data()
+            if len(vd.shape) == 1: continue
+            o, i, k1, k2 = vd.shape
+            masks[k] = np.tile(np.array([0, 1, 2]), (o, i, 1))
+
+
+def test3():
     ctx = mx.gpu()
-    global mask, img, target
-    mask = np.zeros((3, 9))
-    # mask[range(3), np.random.randint(0, 9, (3, 3))] = 1
-    mask[:, [0, 3, 6]] = 1
-    mask = nd.array(mask.reshape((1, 3, 9)))
-    mask = nd.topk(mask, axis=-1, k=3).sort().asnumpy().astype(int)
-    img = nd.random.uniform(10, 20, shape=(2, 3, 12, 12))
-    # target = img.reshape(6, 10, 10).transpose((1, 2, 0))
-    # target = mx.image.resize_short(target, 5).transpose((2, 0, 1)).reshape(2, 3, 5, 5)
-    # target = nd.tile(target, (1, 16, 1, 1))
-    target = nd.ones(3)
+    import pickle
+    f = open("/home/ldc/param.pkl")
+    para = pickle.load(f)
+    # global img, weight
+    # global ipt, opt, k1, k2
+    ipt, opt, k1, k2 = 2, 1, 10, 10
+    img, weight = para['input'], para['weight']
+    weight = weight.reshape(1, 2, 1, 3)
+    cov = special_conv(opt, kernel_size=(3, 1),
+                       in_channels=ipt, padding=1, strides=1)
+    Oconv = nn.Conv2D(opt, kernel_size=(1, 3),
+                      in_channels=ipt, padding=1, strides=1)
+    load_test(cov, weight, ctx)
+    load_test(Oconv, weight, ctx)
+    build_mask(cov)
+    out = Oconv(img)
+    # t2 = time.time()
+    out1 = cov(img)
+    # t3 = time.time()
+    # print t2 - t1, ' and ', t3 - t2
+    # # print 'weight:', nd.sum(Oconv.weight.data() - cov.weight.data()),
+    # # print 'result:', nd.sum(Oout - out),
+    print ''
 
-    img = img.as_in_context(ctx)
-    target = target.as_in_context(ctx)
 
-    # test(ctx)
-    test2()
-    print 'ok'
+def load_test(net, weight, ctx):
+    '''update paramers for single layer'''
+    init_s(net, ctx)
+    n_params = net._collect_params_with_prefix()
+    for key in n_params.keys():
+        if 'bias' not in key:
+            n_params[key]._load_init(weight, ctx)
+
+
+if __name__ == "__main__":
+    # ctx = mx.gpu()
+    global img, target
+    global ipt, opt, k1, k2
+    # ipt, opt, k1, k2 = 5, 256, 1000, 1000
+    # # mask = np.zeros((3, 9))
+    # # # mask[range(3), np.random.randint(0, 9, (3, 3))] = 1
+    # # mask[:, [0, 3, 6]] = 1
+    # # mask = nd.array(mask.reshape((1, 3, 9)))
+    # # mask = nd.topk(mask, axis=-1, k=3).sort().asnumpy().astype(int)
+    # img = nd.random.uniform(10, 20, shape=(ipt, opt, k1, k2))
+    # # target = img.reshape(6, 10, 10).transpose((1, 2, 0))
+    # # target = mx.image.resize_short(target, 5).transpose((2, 0, 1)).reshape(2, 3, 5, 5)
+    # # target = nd.tile(target, (1, 16, 1, 1))
+    # target = nd.ones(3)
+    #
+    # img = img.as_in_context(ctx)
+    # target = target.as_in_context(ctx)
+    #
+    # # test(ctx)
+    # test2(ctx)
+    # print 'ok'
+    test3()

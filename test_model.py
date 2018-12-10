@@ -172,9 +172,9 @@ def prepare():
     # gpus = [0,1]
     # ctx = [mx.gpu(ii) for ii in gpus]
     ctx = mx.gpu()
-    model.load_params("log_bn_dy/spherenet.model", ctx=ctx)
-    if os.path.exists('log_bn_dy/global.param'):
-        with open('log_bn_dy/global.param')as f:
+    model.load_params("log/bn_constrin/spherenet.model", ctx=ctx)
+    if os.path.exists('log/bn_constrin/global.param'):
+        with open('log/bn_constrin/global.param')as f:
             sv = pickle.load(f)
         global_param.load_param(sv, ctx=ctx)
     else:
@@ -190,14 +190,14 @@ if __name__ == "__main__":
     import argparse
 
     args = argparse.ArgumentParser()
-    args.add_argument('--mask', type=str,default='log_bn_dy/global.param')
-    args.add_argument('--model', type=str, default='log_bn_dy/spherenet.model')
+    args.add_argument('--mask', type=str,default='/home/ldc/PycharmProjects/sphere_dynamic/log_4dy_2/global.param')#log_bn_dy/global.param
+    args.add_argument('--model', type=str, default='/home/ldc/PycharmProjects/sphere_dynamic/log_4dy_2/spherenet_4dy.model')#log_bn_dy/spherenet.model
     argments = args.parse_args()
 
     # model = prepare()
     # start = time.time()
     # test_on_LFW(model)
     # print time.time() - start
+    
     from layers import sphere_net
-
     sphere_net.check_kernel_nums(loaded_param=argments.mask, loaded_model=argments.model)

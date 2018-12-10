@@ -22,7 +22,7 @@ def analy_model(mask=None, model=None, kernel_size=(1, 3), show=False):
     from units import init_sphere
     from layers.sphere_net import SphereNet20
     if mask is None:
-        mask = 'log_4dy_Ns3/global.param'
+        mask = "/home/ldc/PycharmProjects/Dy/log_4dy_Ns3/global.param"
     if model is None:
         model = 'log_4dy_Ns3/spherenet_ft_Ns.model'
     ctx = mxnet.cpu()
@@ -43,7 +43,7 @@ def analy_model(mask=None, model=None, kernel_size=(1, 3), show=False):
     loaded = nd.load(model)
     k = loaded.keys()
     keyorder = mnet.collect_params().keys()
-    loaded_key = rearrange(target_key=keyorder, needfix_key=k)
+    loaded_key = rearrange(target_key=keyorder, needfix_key=k,show=show)
     for idx_key, key in enumerate(keyorder):
         t_k = loaded_key[idx_key]
         value = loaded[t_k]
@@ -78,6 +78,8 @@ def analy_model(mask=None, model=None, kernel_size=(1, 3), show=False):
         out = []
         for x in range(3): out.append(value_trans[range(N * C), tops_idx[:, x]])
         paramers[key] = nd.stack(*out).transpose().reshape((N, C) + kernel_size)
+        print key
+    print 'analysis loop stop'
     if show:
         from mxboard import SummaryWriter
         sw = SummaryWriter(logdir='sphere_dynamic', flush_secs=20000)
@@ -138,7 +140,7 @@ def transfer_load(exist_model=None, ctx=mxnet.cpu()):
     # t_params = target_net._collect_params_with_prefix()
     n_k = n_params.keys()
     # t_k = t_params.keys()
-    re_n_k = rearrange(needfix_key=n_k, target_key=t_k)
+    re_n_k = rearrange(needfix_key=n_k, target_key=t_k, show=False)
     # n_k=net.collect_params().keys()
     # t_k=target_net.collect_params().keys()
     for origin_name, target_name in zip(re_n_k, t_k):
@@ -151,7 +153,8 @@ def transfer_load(exist_model=None, ctx=mxnet.cpu()):
         because the later has function copyto() used in _init_impl()
         '''
         n_params[origin_name]._load_init(t_params[target_name], ctx)
-
+        print '2', origin_name, target_name
+    print 'loop stop'
     # save
     _path = list(os.path.split(exist_model))
     _path[-1:-1] = ['transfed']
@@ -178,5 +181,5 @@ def transfer_load(exist_model=None, ctx=mxnet.cpu()):
 
 if __name__ == "__main__":
     # p, m, k = analy_model()
-    # rearrange()
-    transfer_load('log_4dy_Ns3/spherenet_ft_Ns.model')
+    # rearrange() 
+    transfer_load("/home/ldc/PycharmProjects/Dy/log_4dy_Ns3/spherenet_ft_Ns.model")  #

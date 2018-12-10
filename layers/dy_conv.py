@@ -16,7 +16,7 @@ class new_conv(nn.Conv2D):
         # if isinstance(kernel_size, base.numeric_types):
         #     kernel_size = (kernel_size,)*2
         # assert len(kernel_size) == 2, "kernel_size must be a number or a list of 2 ints"
-
+        # self.kernel_size = kernel_size
         super(new_conv, self).__init__(channels, kernel_size, **kwargs)
 
     # def  forward(self, x, *args):
@@ -24,12 +24,19 @@ class new_conv(nn.Conv2D):
     #     self.set_params()
     #     return super(new_conv, self).forward(x, *args)
     def hybrid_forward(self, F, x, weight, bias=None):
+        # kept_in_kernel = self.kernel_size  # change according to kernel size
         keys = self.params.keys()
+        try:
+            ctx = repr(x.context).replace('(', '').replace(')', '')
+        except  Exception, e:
+            ctx = global_param.ctx
         # self.assign_mask(keys)
-        key = [key for key in keys if 'weight' in key][0]
+        key = [key + ctx for key in keys if 'weight' in key][0]
 
         wmask = global_param.netMask[key] = \
             assign_mask(weight, global_param.netMask[key], key)
+        dropout = self.dropout_mode(weight)
+        wmask = dropout * wmask
         # else:
         #     bmask = global_param.netMask[key] = \
         #         assign_mask(bias, global_param.netMask[key])
@@ -42,6 +49,15 @@ class new_conv(nn.Conv2D):
         bmask = nd.sum(bmask, axis=-1) > 0
 
         return super(new_conv, self).hybrid_forward(F, x, weight * wmask, bias * bmask)
+
+    def dropout_mode(self, mask):
+        '''kw&kh must == 5'''
+        _, _, kw, kh = mask.shape
+        assert kw == 5 and kh == 5, 'kernel size should be 5'
+        dropout = nd.zeros((kw, kh), ctx=mask.context)
+        dropout[1:4, 1:4] = 1
+        dropout = nd.random.shuffle(dropout.reshape(-1)).reshape(kw, kh)
+        return dropout
 
 
 # forward with mask
@@ -78,17 +94,17 @@ def assign_mask(weight, mask, key=None):
         cond1 = (mask == 1) * (nd.abs(weight) < (0.9 * max(mu + c_rate * std, 0)))
         cond2 = (mask == 0) * (nd.abs(weight) > (1.1 * max(mu + c_rate * std, 0)))
         mask = mask - cond1 + cond2
-
+    _, _, kept_num_in_kernel, _ = weight.shape
     if condition < global_param.threshold_stop_mask:
         out = nd.abs(weight.reshape(list(weight.shape[:2]) + [-1]))
         # channel = out.shape[1]
         # mu, std = global_param.netMask[name + '_muX'], global_param.netMask[name + '_stdX']
-        out = nd.topk(out, axis=-1, k=kept_in_kernel, ret_typ='mask')
+        out = nd.topk(out, axis=-1, k=kept_num_in_kernel, ret_typ='mask')
         mask = out.reshape(weight.shape)
     return mask
 
 
-def constrain_kernal_num(mnet, ctx=mx.cpu()):
+def constrain_kernal_num(params, ctx=mx.cpu()):
     # L1_loss = loss.L1Loss()
     exclude = ['alpha', 'bias', 'dense', '_muX', '_stdX', 'batchnorm']  # 'conv0_', 'conv1_', 'conv2_',
 
@@ -101,28 +117,35 @@ def constrain_kernal_num(mnet, ctx=mx.cpu()):
     r = global_param.get_kept_ratio()
     if r > 0:
         num_kernel = []
-        for k, v in global_param.netMask.items():
-            if excluded(k):
+        for kk, v in global_param.netMask.items():
+            if excluded(kk):
                 continue
-            w = mnet.collect_params()[k].data()
+            k = global_param.selected_key[kk]
+            w = params[k]  # .data()
             # masked = w * v
-            num_kernel.append(new_constrain_conv(w, k))
-
+            if global_param.use_group_constrain:
+                group_loss = new_group_constrain_conv(w, kk)
+            else:
+                group_loss = new_constrain_conv(w, kk)
+            # todo: recoder the result -- center and surrouds are not work
+            # num_kernel.append(group_loss + loss_distribution_gt_threshold(w, kk))
+            num_kernel.append(group_loss)
         # num_kernel = [constrain_conv(v, k) for k, v in global_param.netMask.items() if Not_excluded(k)]
         loss_nums = reduce(lambda x, y: x + y, num_kernel) / len(num_kernel)
         # Calculate the weight for mask
         # iter_ = global_param.iter
         # r = math.pow(1 + advanced_iter * gamma * iter_, -power)
-        return loss_nums * r * nums_power
+        return loss_nums * nums_power
     return nd.zeros(1).as_in_context(ctx)
 
 
 # using top_k
 def new_constrain_conv(weight, name):
     out = nd.abs(weight.reshape(list(weight.shape[:2]) + [-1]))
+    _, _, kw, kh = weight.shape
     channel = out.shape[1]
     mu, std = global_param.netMask[name + '_muX'], global_param.netMask[name + '_stdX']
-    tops = nd.topk(out, axis=-1, k=kept_in_kernel, ret_typ='mask')
+    tops = nd.topk(out, axis=-1, k=kw + kh, ret_typ='mask')
     # let these in tops stay in activ & others be lost
     zeros = nd.zeros_like(out)
     ones = nd.ones_like(out)
@@ -161,13 +184,15 @@ def new_constrain_conv(weight, name):
     # input*output;but output channels are almost same
     return loss  # / channel
 
-# using top_k of a group
+
+# using top_k of a group, bigger granularity
 def new_group_constrain_conv(weight, name):
     out = nd.abs(weight.reshape(list(weight.shape[:2]) + [-1]))
+    _, _, kw, kh = weight.shape
     channel = out.shape[1]
     mu, std = global_param.netMask[name + '_muX'], global_param.netMask[name + '_stdX']
-    group_out=nd.sum(out,axis=1,keepdims=True)
-    tops = nd.topk(group_out, axis=-1, k=kept_in_kernel, ret_typ='mask')
+    group_out = nd.sum(out, axis=1, keepdims=True)
+    tops = nd.topk(group_out, axis=-1, k=kw + kh, ret_typ='mask')
     # let these in tops stay in activ & others be lost
     zeros = nd.zeros_like(out)
     ones = nd.ones_like(out)
@@ -190,17 +215,35 @@ def new_group_constrain_conv(weight, name):
     # if global_param.iter > 250000: loss = loss * 4
     # input*output;but output channels are almost same
     return loss  # / channel
+
+
+def loss_distribution_gt_threshold(weight, name):
+    out = nd.abs(weight.reshape(list(weight.shape[:2]) + [-1]))
+    _, _, kw, kh = weight.shape
+    assert kw == 5 and kh == 5, 'kernel size should equals 5 now'
+    mask = nd.zeros((kw, kh), ctx=weight.context)
+    mask[1:4, 1:4] = 1
+    mask = mask.reshape(-1)
+    # max & relu
+    tops = nd.topk(out, axis=-1, k=(kh + kw), ret_typ='mask')
+    tops_center = tops * mask
+    tops_surround = tops * (1 - mask)
+    loss_out_in = nd.abs(nd.sum(tops_surround * out) - nd.sum(tops_center * out))
+    return loss_out_in
+
+
 # a convlution with constrain of limited paramers
 # map the data in kernel [0.9(mu-std),1.1(mu-std)] to [-4,4]
 # but the first three number augmented with factor 2
 def constrain_conv(weight, name):  # v,
     out = nd.abs(weight.reshape(list(weight.shape[:2]) + [-1]))
+    _, _, kept_num_in_kernel, _ = weight.shape
     # mask = v.reshape(list(weight.shape[:2]) + [-1])
     mu, std = global_param.netMask[name + '_muX'], global_param.netMask[name + '_stdX']
     loc_zero, low_thr, high_thr, aug_factor = (mu + c_rate * std), 0.9, 1.1, 2.0
     shoulder_sigmoid = 4
     mid_thr = (low_thr + high_thr) / 2
-    tops = nd.topk(out, axis=-1, k=kept_in_kernel, ret_typ='mask')
+    tops = nd.topk(out, axis=-1, k=kept_num_in_kernel, ret_typ='mask')
     # maps the data in kernel to new ones
     out = out + (aug_factor - 1.0) * tops * out
     factors = shoulder_sigmoid / ((high_thr - mid_thr) * mu)
@@ -218,7 +261,7 @@ def constrain_conv(weight, name):  # v,
     # out2 = nd.abs(out)  # close t0 0
     # out_c = nd.where(out1 < out2, out1, out2)
     ## w = out_c / nd.sum(out_c)  # distribution the derivative
-    constrain = nd.sum(nd.sigmoid(out) - kept_in_kernel)  # / channel
+    constrain = nd.sum(nd.sigmoid(out) - kept_num_in_kernel)  # / channel
     tag_key = '_'.join(name.split('_')[1:]) + '_K'
     gls.sw.add_scalar(tag=tag_key, value=constrain.asscalar(), global_step=global_param.iter)
     return constrain
