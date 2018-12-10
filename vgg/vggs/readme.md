@@ -26,6 +26,10 @@
 - vggs_41
 - order: python train_vggs.py --gpuid=0 --root=vggs_1 --Isinit=True --archid=1 --alterconv=True --isFLF=True
 - 精度也下降到0.6附近
+- 使用大卷积核，同时使用细粒度剪枝的方式使其空洞化；
+- 但是不管vggs_4还是vggs_41，前者是只finetune前两层，后者是整个网络参数都调整；
+- 效果都不好，41和普通的替代的方式（vggs_2）效果差不多，4则差的很多；
+- 能不能想个办法可以让卷积具有非线性的处理能力呢。
 # vggs
 - 增加了函数loss_distribution_gt_threshold，放在dy_conv中
 - 作用是构建了内圈和外圈的差值，目的是想让kernel的内核和外圈有效参数的比重相等
